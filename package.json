@@ -1,0 +1,56 @@
+{
+  "name": "care-appointment-plug",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite preview & vite build --watch",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ohcnetwork/care_appointment_plug.git"
+  },
+  "author": "Open Healthcare Network",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ohcnetwork/care_appointment_plug/issues"
+  },
+  "homepage": "https://github.com/ohcnetwork/care_appointment_plug#readme",
+  "description": "CARE plug that auto-creates an invoice when confirming an appointment with charge items.",
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write --ignore-unknown",
+      "eslint --fix"
+    ]
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.72.2",
+    "raviger": "^5.0.0-2"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@originjs/vite-plugin-federation": "^1.4.1",
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.1.1",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react-swc": "^3.8.1",
+    "eslint": "^9.24.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
+    "prettier": "^3.5.3",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.29.1",
+    "vite": "^6.2.6"
+  }
+}

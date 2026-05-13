@@ -1,0 +1,19 @@
+/**
+ * Component overrides this plug contributes to the host.
+ *
+ * Each key here is a host component identifier (see the host's
+ * `src/lib/override/keys` registry). The value is the forked implementation
+ * the host should render in place of its own.
+ *
+ * Imported for side-effects from `manifest.tsx`.
+ */
+import { BookAppointmentDetails } from "@/pages/Appointments/BookAppointment/BookAppointmentDetails";
+import { defineComponentOverrides } from "@/lib/hostOverrides";
+
+defineComponentOverrides({
+  BookAppointmentDetails: {
+    component: BookAppointmentDetails,
+    description:
+      "Auto-creates and issues an invoice on appointment confirmation when the appointment has charge items.",
+  },
+});

@@ -1,4 +1,4 @@
-import "./apiOverrides";
+import "./componentOverrides";
 
 interface NavigationLink {
   url: string;

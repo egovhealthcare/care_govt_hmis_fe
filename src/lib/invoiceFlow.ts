@@ -108,6 +108,6 @@ export function buildInvoiceUrl(
   const sourceUrl = `/facility/${facilityId}/patient/${patientId}/appointments/${appointmentId}`;
   return (
     `/facility/${facilityId}/billing/invoices/${invoiceId}` +
-    `?${isPayment && "is_payment=true"}&sourceUrl=${encodeURIComponent(sourceUrl)}`
+    `${isPayment && "/pay"}?sourceUrl=${encodeURIComponent(sourceUrl)}`
   );
 }

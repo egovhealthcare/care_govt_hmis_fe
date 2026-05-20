@@ -17,6 +17,50 @@ import type { ComponentType } from "react";
 
 const PLUG_TAG = "[care_appointment_plug]";
 
+/**
+ * Subset of the host's `OverrideContextType` (see host's
+ * `src/lib/override/types.ts`). Inlined so this file has no host import
+ * and can be copy-pasted into any plug verbatim.
+ *
+ * `route` is the current `usePath()` value — updated automatically by the
+ * host's `OverrideProvider` on every navigation. `page` is a derived first
+ * path segment (e.g. `"facility"`). Both are present whenever the plug
+ * runs inside the host app.
+ */
+export interface OverrideContext {
+  route?: string;
+  page?: string;
+  userRole?: string;
+  facilityType?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Conditions that scope an override to a subset of render sites. The
+ * host's resolver evaluates these on every route / context change; the
+ * first override whose conditions all match wins.
+ */
+export interface OverrideCondition {
+  /** Match `OverrideContext.page` exactly (or any of the listed pages). */
+  page?: string | string[];
+  /** Match `OverrideContext.userRole`. */
+  userRole?: string | string[];
+  /** Match `OverrideContext.facilityType`. */
+  facilityType?: string | string[];
+  /**
+   * Stack-path match against ancestor `register()`-wrapped components.
+   * Requires those ancestors to be registered in the host — usually not
+   * available without host changes.
+   */
+  stackPath?: string[];
+  /**
+   * Arbitrary predicate against the live `OverrideContext`. Use this for
+   * URL / route matching:
+   *   `custom: ({ route }) => route?.startsWith("/foo") ?? false`
+   */
+  custom?: (context: OverrideContext) => boolean;
+}
+
 /** Shape of a single component override entry handed to the host. */
 export interface ComponentOverrideEntry<P = unknown> {
   component: ComponentType<P>;
@@ -24,6 +68,8 @@ export interface ComponentOverrideEntry<P = unknown> {
   description?: string;
   /** Higher wins when multiple plugs register the same key. Defaults to 0. */
   priority?: number;
+  /** Optional scope. When omitted the override applies everywhere. */
+  condition?: OverrideCondition;
 }
 
 /** Subset of the host bridge we depend on. */

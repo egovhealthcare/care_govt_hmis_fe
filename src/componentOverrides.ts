@@ -15,5 +15,16 @@ defineComponentOverrides({
     component: BookAppointmentDetails,
     description:
       "Auto-creates and issues an invoice on appointment confirmation when the appointment has charge items.",
+    // Scope to the two routes that mount `BookAppointmentSheet` today:
+    //   - PatientHome:    /facility/:facilityId/patients/home
+    //   - PatientProfile: /patient/:id[/:tab]
+    //                     /facility/:facilityId/patient/:id[/:tab]
+    // Anywhere else, the override is skipped and the host's base
+    // component renders.
+    condition: {
+      custom: ({ route }) =>
+        typeof route === "string" &&
+        /^(\/facility\/[^/]+)?\/patient(s\/home|\/[^/]+)/.test(route),
+    },
   },
 });

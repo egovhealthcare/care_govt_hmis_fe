@@ -1,3 +1,5 @@
 {
-  
+  "invoice_creation_failed": "Invoice creation failed",
+  "proceed_to_billing": "Proceed to Billing",
+  "more_options": "More options"
 }

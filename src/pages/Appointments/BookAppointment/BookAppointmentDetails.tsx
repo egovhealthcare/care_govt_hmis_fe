@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import { navigate } from "raviger";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,9 +8,19 @@ import { toast } from "sonner";
 
 import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 
-import { buildInvoiceUrl, runInvoiceFlow } from "@/lib/invoiceFlow";
+import {
+  buildInvoiceUrl,
+  InvoiceIssueError,
+  runInvoiceFlow,
+} from "@/lib/invoiceFlow";
 import { AppointmentSlotPicker } from "@/pages/Appointments/BookAppointment/AppointmentSlotPicker";
 import useCurrentFacility from "@/pages/Facility/utils/useCurrentFacility";
 import { TagConfig } from "@/types/emr/tagConfig/tagConfig";
@@ -82,51 +92,65 @@ const BookAppointmentDetailsBase = ({
       mutationFn: mutate(scheduleApi.slots.createAppointment, {
         pathParams: { facilityId, slotId: selectedSlotId ?? "" },
       }),
-      onSuccess: async (data: Appointment) => {
-        toast.success(t("appointment_created_successfully"));
-        onSuccess?.();
-
-        // Plug-specific behaviour: try to auto-create an invoice for the new
-        // appointment. If anything is missing (no charge items, no open
-        // account, etc.) `runInvoiceFlow` returns null and we fall back to
-        // the host's default post-create destination.
-        const inputs = {
-          facilityId,
-          patientId,
-          appointmentId: data.id,
-          isPayment: true,
-        };
-
-        try {
-          const invoiceId = await runInvoiceFlow(inputs);
-          if (invoiceId) {
-            navigate(buildInvoiceUrl(inputs, invoiceId));
-            return;
-          }
-        } catch (err) {
-          console.error(
-            "[care_appointment_plug] invoice flow failed; falling back",
-            err,
-          );
-        }
-
-        navigate(
-          `/facility/${facilityId}/patient/${patientId}/appointments/${data.id}?showSuccess=true`,
-        );
-      },
     },
   );
 
-  const handleSubmit = async () => {
-    if (!selectedResource || !selectedSlotId) {
-      return;
-    }
+  const goToAppointmentView = (appointmentId: string) => {
+    navigate(
+      `/facility/${facilityId}/patient/${patientId}/appointments/${appointmentId}?showSuccess=true`,
+    );
+  };
 
-    await createAppointment({
+  /** Default action: host's stock behaviour — book + go to appointment view. */
+  const handleConfirmAppointment = async () => {
+    if (!selectedResource || !selectedSlotId) return;
+    const data: Appointment = await createAppointment({
       patient: patientId,
       note: reason,
       tags: selectedTags.map((tag) => tag.id),
     });
+    toast.success(t("appointment_created_successfully"));
+    onSuccess?.();
+    goToAppointmentView(data.id);
+  };
+
+  /** Dropdown action: book + run the plug's auto-invoice flow. */
+  const handleProceedToBilling = async () => {
+    if (!selectedResource || !selectedSlotId) return;
+    const data: Appointment = await createAppointment({
+      patient: patientId,
+      note: reason,
+      tags: selectedTags.map((tag) => tag.id),
+    });
+    toast.success(t("appointment_created_successfully"));
+    onSuccess?.();
+
+    const inputs = {
+      facilityId,
+      patientId,
+      appointmentId: data.id,
+      isPayment: true,
+    };
+
+    try {
+      const invoiceId = await runInvoiceFlow(inputs);
+      if (invoiceId) {
+        navigate(buildInvoiceUrl(inputs, invoiceId));
+        return;
+      }
+    } catch (err) {
+      if (err instanceof InvoiceIssueError) {
+        toast.error(
+          t("invoice_creation_failed", { ns: "care_appointment_plug" }),
+        );
+      }
+      console.error(
+        "[care_appointment_plug] invoice flow failed; falling back",
+        err,
+      );
+    }
+
+    goToAppointmentView(data.id);
   };
 
   const handleIsOpen = (open: boolean) => {
@@ -184,15 +208,43 @@ const BookAppointmentDetailsBase = ({
             >
               {t("cancel")}
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSubmit}
-              type="submit"
-              disabled={isCreating}
-            >
-              {t("confirm_appointment")}
-            </Button>
+            <div className="flex">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmAppointment}
+                type="submit"
+                disabled={isCreating}
+                className="rounded-r-none border-r-0"
+              >
+                {t("confirm_appointment")}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={isCreating}
+                    className="rounded-l-none px-2"
+                    aria-label={t("more_options", {
+                      ns: "care_appointment_plug",
+                    })}
+                  >
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      handleProceedToBilling();
+                    }}
+                  >
+                    {t("proceed_to_billing", { ns: "care_appointment_plug" })}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       )}
@@ -255,14 +307,42 @@ const BookAppointmentDetailsBase = ({
                   <ArrowLeft />
                   {t("back")}
                 </Button>
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  onClick={handleSubmit}
-                  disabled={!selectedSlotId || isCreating}
-                >
-                  {t("confirm_appointment")}
-                </Button>
+                <div className="flex w-full">
+                  <Button
+                    variant="primary"
+                    className="flex-1 rounded-r-none border-r-0"
+                    onClick={handleConfirmAppointment}
+                    disabled={!selectedSlotId || isCreating}
+                  >
+                    {t("confirm_appointment")}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="primary"
+                        className="rounded-l-none px-2"
+                        disabled={!selectedSlotId || isCreating}
+                        aria-label={t("more_options", {
+                          ns: "care_appointment_plug",
+                        })}
+                      >
+                        <ChevronDown className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          handleProceedToBilling();
+                        }}
+                      >
+                        {t("proceed_to_billing", {
+                          ns: "care_appointment_plug",
+                        })}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </>
           )}

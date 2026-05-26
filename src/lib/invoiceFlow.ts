@@ -3,19 +3,25 @@
  *
  * After the host's `createAppointment` mutation resolves successfully, this
  * helper:
- *   1. Lists charge items linked to the new appointment.
- *   2. Finds an active billable account for the patient.
- *   3. Creates a draft invoice and immediately moves it to `issued`.
+ *   1. Lists charge items linked to the new appointment *and* finds an
+ *      active billable account for the patient — both as one normal
+ *      `/api/v1/batch_requests/` call.
+ *   2. Creates a draft invoice and immediately moves it to `issued`, both
+ *      submitted as a single transactional `care_super_batch_be` request.
  *
  * Returns the invoice id on success, or `null` when there is nothing to bill
  * (no charge items, no open account, or any soft failure). Callers should
  * fall back to the host's default post-create UX in the `null` case.
  */
-import accountApi from "@/types/billing/account/accountApi";
-import chargeItemApi from "@/types/billing/chargeItem/chargeItemApi";
-import invoiceApi from "@/types/billing/invoice/invoiceApi";
-import { InvoiceStatus } from "@/types/billing/invoice/invoice";
+import { AccountBase } from "@/types/billing/account/Account";
+import { ChargeItemRead } from "@/types/billing/chargeItem/chargeItem";
+import { InvoiceRead, InvoiceStatus } from "@/types/billing/invoice/invoice";
+import batchApi from "@/types/base/batch/batchApi";
+import { BatchReplacementType } from "@/types/superBatch/superBatch";
+import superBatchApi from "@/types/superBatch/superBatchApi";
 import { callApi } from "@/Utils/request/query";
+import { PaginatedResponse } from "@/Utils/request/types";
+import { makeUrl } from "@/Utils/request/utils";
 
 export interface InvoiceFlowInputs {
   facilityId: string;
@@ -24,35 +30,75 @@ export interface InvoiceFlowInputs {
   isPayment?: boolean;
 }
 
-async function listAppointmentChargeItemIds({
+export class InvoiceIssueError extends Error {
+  readonly cause?: unknown;
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "InvoiceIssueError";
+    this.cause = cause;
+  }
+}
+
+interface ListingsResult {
+  chargeItemIds: string[];
+  accountId: string | null;
+}
+
+async function fetchChargeItemsAndAccount({
   facilityId,
+  patientId,
   appointmentId,
-}: InvoiceFlowInputs): Promise<string[]> {
-  const res = await callApi(chargeItemApi.listChargeItem, {
-    pathParams: { facilityId },
-    queryParams: {
+}: InvoiceFlowInputs): Promise<ListingsResult> {
+  const chargeItemsUrl = makeUrl(
+    "/api/v1/facility/{facilityId}/charge_item/",
+    {
       service_resource: "appointment",
       service_resource_id: appointmentId,
       limit: 100,
     },
-  });
-  return res.results.map((item) => item.id);
-}
-
-async function findOpenAccountId({
-  facilityId,
-  patientId,
-}: InvoiceFlowInputs): Promise<string | null> {
-  const res = await callApi(accountApi.listAccount, {
-    pathParams: { facilityId },
-    queryParams: {
+    { facilityId },
+  );
+  const accountUrl = makeUrl(
+    "/api/v1/facility/{facilityId}/account/",
+    {
       patient: patientId,
       status: "active",
       billing_status: "open",
       limit: 1,
     },
+    { facilityId },
+  );
+
+  const batch = await callApi(batchApi.batchRequest, {
+    silent: true,
+    body: {
+      requests: [
+        {
+          reference_id: "chargeItems",
+          url: chargeItemsUrl,
+          method: "GET",
+          body: {},
+        },
+        {
+          reference_id: "account",
+          url: accountUrl,
+          method: "GET",
+          body: {},
+        },
+      ],
+    },
   });
-  return res.results[0]?.id ?? null;
+
+  const chargeItemsRes = batch.results.find(
+    (r) => r.reference_id === "chargeItems",
+  )?.data as PaginatedResponse<ChargeItemRead> | undefined;
+  const accountRes = batch.results.find((r) => r.reference_id === "account")
+    ?.data as PaginatedResponse<AccountBase> | undefined;
+
+  return {
+    chargeItemIds: chargeItemsRes?.results.map((item) => item.id) ?? [],
+    accountId: accountRes?.results[0]?.id ?? null,
+  };
 }
 
 async function createAndIssueInvoice(
@@ -60,24 +106,60 @@ async function createAndIssueInvoice(
   accountId: string,
   chargeItemIds: string[],
 ): Promise<string> {
-  const draft = await callApi(invoiceApi.createInvoice, {
-    pathParams: { facilityId },
-    body: {
-      status: InvoiceStatus.draft,
-      account: accountId,
-      charge_items: chargeItemIds,
-    },
-  });
-  await callApi(invoiceApi.updateInvoice, {
-    pathParams: { facilityId, invoiceId: draft.id },
-    body: {
-      status: InvoiceStatus.issued,
-      issue_date: new Date().toISOString(),
-      account: accountId,
-      charge_items: chargeItemIds,
-    },
-  });
-  return draft.id;
+  const sharedBody = {
+    account: accountId,
+    charge_items: chargeItemIds,
+  };
+
+  // The draft + issue mutations are sent to `care_super_batch_be` as a single
+  // transactional batch. The draft's `id` is piped into the issue request's
+  // URL via the `{invoiceId}` token (see Super Batch's `find_and_replace_data`
+  // for URL-token semantics).
+  let batch;
+  try {
+    batch = await callApi(superBatchApi.execute, {
+      silent: true,
+      body: {
+        requests: [
+          {
+            reference_id: "draft",
+            url: `/api/v1/facility/${facilityId}/invoice/`,
+            method: "POST",
+            body: { ...sharedBody, status: InvoiceStatus.draft },
+          },
+          {
+            reference_id: "issue",
+            url: `/api/v1/facility/${facilityId}/invoice/{invoiceId}/`,
+            method: "PUT",
+            body: {
+              ...sharedBody,
+              status: InvoiceStatus.issued,
+              issue_date: new Date().toISOString(),
+            },
+            replacements: [
+              {
+                source_path: { reference_id: "draft", path: "id" },
+                value_path: {
+                  reference_id: "issue",
+                  path: "invoiceId",
+                  type: BatchReplacementType.url,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  } catch (err) {
+    throw new InvoiceIssueError("Failed to create and issue invoice", err);
+  }
+
+  const issued = batch.results.find((r) => r.reference_id === "issue")
+    ?.data as InvoiceRead | undefined;
+  if (!issued?.id) {
+    throw new InvoiceIssueError("Error issuing Invoice");
+  }
+  return issued.id;
 }
 
 /**
@@ -87,11 +169,9 @@ async function createAndIssueInvoice(
 export async function runInvoiceFlow(
   inputs: InvoiceFlowInputs,
 ): Promise<string | null> {
-  const chargeItemIds = await listAppointmentChargeItemIds(inputs);
-  if (chargeItemIds.length === 0) return null;
-
-  const accountId = await findOpenAccountId(inputs);
-  if (!accountId) return null;
+  const { chargeItemIds, accountId } =
+    await fetchChargeItemsAndAccount(inputs);
+  if (chargeItemIds.length === 0 || !accountId) return null;
 
   return createAndIssueInvoice(inputs.facilityId, accountId, chargeItemIds);
 }

@@ -1,4 +1,3 @@
-import careConfig from "@/care.config";
 
 import { RESULTS_PER_PAGE_LIMIT } from "@/common/constants";
 
@@ -16,7 +15,7 @@ export async function callApi<Route extends ApiRoute<unknown, unknown>>(
   { baseUrl, path, method, noAuth, defaultQueryParams }: Route,
   options?: ApiCallOptions<Route>,
 ): Promise<Route["TRes"]> {
-  const url = `${baseUrl ?? careConfig.apiUrl}${makeUrl(
+  const url = `${baseUrl ?? window.CARE_API_URL}${makeUrl(
     path,
     {
       ...(defaultQueryParams ?? {}),

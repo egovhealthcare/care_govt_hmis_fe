@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { navigate } from "raviger";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,12 +8,6 @@ import { toast } from "sonner";
 
 import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 
 import {
@@ -99,19 +93,6 @@ const BookAppointmentDetailsBase = ({
     navigate(
       `/facility/${facilityId}/patient/${patientId}/appointments/${appointmentId}?showSuccess=true`,
     );
-  };
-
-  /** Default action: host's stock behaviour — book + go to appointment view. */
-  const handleConfirmAppointment = async () => {
-    if (!selectedResource || !selectedSlotId) return;
-    const data: Appointment = await createAppointment({
-      patient: patientId,
-      note: reason,
-      tags: selectedTags.map((tag) => tag.id),
-    });
-    toast.success(t("appointment_created_successfully"));
-    onSuccess?.();
-    goToAppointmentView(data.id);
   };
 
   /** Dropdown action: book + run the plug's auto-invoice flow. */

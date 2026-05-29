@@ -8,7 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [
     federation({
-      name: "care_scribe",
+      name: "care_govt_hmis_fe",
       filename: "remoteEntry.js",
       exposes: {
         "./manifest": "./src/manifest.tsx",

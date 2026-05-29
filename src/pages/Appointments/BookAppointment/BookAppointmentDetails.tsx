@@ -212,38 +212,12 @@ const BookAppointmentDetailsBase = ({
               <Button
                 variant="primary"
                 size="sm"
-                onClick={handleConfirmAppointment}
+                onClick={handleProceedToBilling}
                 type="submit"
                 disabled={isCreating}
-                className="rounded-r-none border-r-0"
               >
-                {t("confirm_appointment")}
+                {t("proceed_to_billing", { ns: "care_appointment_plug" })}
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isCreating}
-                    className="rounded-l-none px-2"
-                    aria-label={t("more_options", {
-                      ns: "care_appointment_plug",
-                    })}
-                  >
-                    <ChevronDown className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      handleProceedToBilling();
-                    }}
-                  >
-                    {t("proceed_to_billing", { ns: "care_appointment_plug" })}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -310,38 +284,14 @@ const BookAppointmentDetailsBase = ({
                 <div className="flex w-full">
                   <Button
                     variant="primary"
-                    className="flex-1 rounded-r-none border-r-0"
-                    onClick={handleConfirmAppointment}
+                    className="flex-1"
+                    onClick={handleProceedToBilling}
                     disabled={!selectedSlotId || isCreating}
                   >
-                    {t("confirm_appointment")}
+                    {t("proceed_to_billing", {
+                      ns: "care_appointment_plug",
+                    })}
                   </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="primary"
-                        className="rounded-l-none px-2"
-                        disabled={!selectedSlotId || isCreating}
-                        aria-label={t("more_options", {
-                          ns: "care_appointment_plug",
-                        })}
-                      >
-                        <ChevronDown className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          handleProceedToBilling();
-                        }}
-                      >
-                        {t("proceed_to_billing", {
-                          ns: "care_appointment_plug",
-                        })}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
             </>

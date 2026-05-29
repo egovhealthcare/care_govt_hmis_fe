@@ -39,7 +39,7 @@
   "devDependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.1",
     "@eslint/js": "^9.24.0",
-    "@originjs/vite-plugin-federation": "^1.4.1",
+    "@module-federation/vite": "^1.16.1",
     "@radix-ui/react-avatar": "^1.1.4",
     "@radix-ui/react-checkbox": "^1.1.5",
     "@radix-ui/react-dialog": "^1.1.15",

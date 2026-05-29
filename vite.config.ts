@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import federation from "@originjs/vite-plugin-federation";
+import { federation } from "@module-federation/vite";
 import path from "path";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
@@ -26,7 +26,7 @@ export default defineConfig({
       polyfill: false,
     },
     rollupOptions: {
-      external: [],
+      external: [],      
       input: {
         main: "./src/manifest.tsx",
       },

@@ -2,5 +2,20 @@
   "invoice_creation_failed": "Invoice creation failed",
   "proceed_to_billing": "Proceed to Billing",
   "more_options": "More options",
-  "admit_patient": "Admit Patient"
+  "admit_patient": "Admit Patient",
+  "encounter_external_identifier_settings": "Encounter External Identifier Settings",
+  "encounter_external_identifier_expression": "Encounter External Identifier Expression",
+  "encounter_external_identifier_supported_variables": "Supported variables:",
+  "encounter_external_identifier_counter": "{encounter_count} — Auto-incrementing encounter counter",
+  "encounter_external_identifier_year_yy": "{YY} — Current year (2-digit)",
+  "encounter_external_identifier_year_yyyy": "{YYYY} — Current year (4-digit)",
+  "encounter_external_identifier_other_characters": "Any other characters are used as-is (e.g. dashes, slashes, prefixes).",
+  "encounter_external_identifier_example_value": "ENC-{YYYY}-{encounter_count}",
+  "arithmetic_help": "You can use basic arithmetic (+, -) with variables.",
+  "saving": "Saving...",
+  "save": "Save",
+  "cancel": "Cancel",
+  "edit": "Edit",
+  "saved_successfully": "Saved successfully",
+  "error": "An error occurred. Please try again."
 }

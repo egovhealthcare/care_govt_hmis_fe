@@ -77,4 +77,12 @@ export default {
     method: HttpMethod.GET,
     TRes: Type<UserReadMinimal>(),
   },
+  setEncounterExternalIdentifierExpression: {
+    path: "/api/v1/facility/{facilityId}/set_encounter_external_identifier_expression/",
+    method: HttpMethod.POST,
+    TRes: Type<FacilityRead>(),
+    TBody: Type<{
+      encounter_external_identifier_expression: string;
+    }>(),
+  },
 } as const;

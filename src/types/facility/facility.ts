@@ -50,6 +50,7 @@ export interface FacilityRead extends FacilityBase, FacilityPermissions {
   instance_tax_codes: Code[];
   instance_tax_monetary_components: MonetaryComponentRead[];
   invoice_number_expression: string;
+  encounter_external_identifier_expression: string;
   discount_codes: Code[];
   discount_monetary_components: MonetaryComponentRead[];
   discount_configuration: DiscountConfiguration | null;

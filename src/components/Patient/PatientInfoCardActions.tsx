@@ -5,34 +5,33 @@ import { Edit } from "lucide-react";
 import { Link } from "raviger";
 import { useTranslation } from "react-i18next";
 
-
 interface PatientInfoCardActionsProps {
-    patient: PatientRead;
-    facilityId: string;
-    canWritePatient?: boolean;
+  patient: PatientRead;
+  facilityId: string;
+  canWritePatient?: boolean;
 }
 
 export default function PatientInfoCardActions({
-    patient,
-    facilityId,
-    canWritePatient = false,
+  patient,
+  facilityId,
+  canWritePatient = true,
 }: PatientInfoCardActionsProps) {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
 
-    if (!canWritePatient) return <></>;
+  if (!canWritePatient) return <></>;
 
-    return (
-        <Button variant="ghost">
-            <Link
-                basePath="/"
-                href={`/facility/${facilityId}/patient/${patient.id}/update`}
-                className="flex gap-2 items-center"
-            >
-                <Edit size={16} />
-                <span className="text-black underline font-semibold">
-                    {t("edit_profile")}
-                </span>
-            </Link>
-        </Button>
-    );
-};
+  return (
+    <Button variant="ghost">
+      <Link
+        basePath="/"
+        href={`/facility/${facilityId}/patient/${patient.id}/update`}
+        className="flex items-center gap-2"
+      >
+        <Edit size={16} />
+        <span className="font-semibold text-black underline">
+          {t("edit_profile")}
+        </span>
+      </Link>
+    </Button>
+  );
+}

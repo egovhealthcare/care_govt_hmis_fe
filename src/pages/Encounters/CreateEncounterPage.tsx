@@ -2,11 +2,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, MapPin, Stethoscope } from "lucide-react";
 import { navigate } from "raviger";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import * as z from "zod";
+import { TFunction } from "i18next";
 
 import { EncounterLocationAssignmentSheet } from "@/components/Location/EncounterLocationAssignmentSheet";
 import { TagSelectorPopover } from "@/components/Tags/TagAssignmentSheet";
@@ -53,7 +54,10 @@ import { TagConfig, TagResource } from "@/types/emr/tagConfig/tagConfig";
 import useTagConfigs from "@/types/emr/tagConfig/useTagConfig";
 import { LocationRead } from "@/types/location/location";
 
-import { BatchReplacementType } from "@/types/superBatch/superBatch";
+import {
+  BatchReplacementType,
+  BatchResponse,
+} from "@/types/superBatch/superBatch";
 import superBatchApi from "@/types/superBatch/superBatchApi";
 import { PaginatedResponse } from "@/Utils/request/types";
 import {
@@ -62,14 +66,78 @@ import {
   useEntityExtensions,
   useExtensionSchemas,
 } from "@/hooks/useExtensions";
-import { useMemo } from "react";
-import { TFunction } from "i18next";
 import { ExtensionContexts } from "@/Utils/schema/types";
 import { Separator } from "@/components/ui/separator";
 
 interface CreateEncounterPageProps {
   facilityId: string;
   patientId: string;
+}
+
+type SilentError = Error & { silent: true };
+
+const ERROR_MESSAGE_FIELDS = ["msg", "error", "detail", "message"] as const;
+
+function createSilentError(message: string): SilentError {
+  const error = new Error(message) as SilentError;
+  error.silent = true;
+  return error;
+}
+
+function getMessageFromErrorData(data: unknown): string | undefined {
+  if (!data) {
+    return undefined;
+  }
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(getMessageFromErrorData).find(Boolean);
+  }
+
+  if (typeof data !== "object") {
+    return undefined;
+  }
+
+  const errorData = data as Record<string, unknown>;
+
+  for (const field of ERROR_MESSAGE_FIELDS) {
+    const value = errorData[field];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+
+  return (
+    getMessageFromErrorData(errorData.errors) ||
+    getMessageFromErrorData(errorData.non_field_errors)
+  );
+}
+
+function getFirstBatchErrorMessage(batch: BatchResponse): string | undefined {
+  const firstFailedResult = batch.results.find(
+    (result) => result.status_code >= 400,
+  );
+
+  return getMessageFromErrorData(firstFailedResult?.data);
+}
+
+function getEncounterCreationErrorMessage(error: unknown): string | undefined {
+  const cause =
+    error instanceof Error && "cause" in error ? error.cause : undefined;
+
+  if (cause && typeof cause === "object" && "results" in cause) {
+    return getFirstBatchErrorMessage(cause as BatchResponse);
+  }
+
+  return (
+    getMessageFromErrorData(cause) ||
+    (error instanceof Error && error.message !== "Request Failed"
+      ? error.message
+      : undefined)
+  );
 }
 
 export function CreateEncounterPage({
@@ -348,9 +416,22 @@ export function CreateEncounterPage({
         });
       }
 
-      const batch = await callApi(superBatchApi.execute, {
-        body: { requests },
-      });
+      let batch: BatchResponse;
+      try {
+        batch = await callApi(superBatchApi.execute, {
+          silent: true,
+          body: { requests },
+        });
+      } catch (error) {
+        throw createSilentError(
+          getEncounterCreationErrorMessage(error) || t("something_went_wrong"),
+        );
+      }
+
+      const batchErrorMessage = getFirstBatchErrorMessage(batch);
+      if (batchErrorMessage) {
+        throw createSilentError(batchErrorMessage);
+      }
 
       const encounter = batch.results.find(
         (r) => r.reference_id === "encounter",
@@ -360,7 +441,7 @@ export function CreateEncounterPage({
       )?.data as AccountRead | undefined;
 
       if (!encounter || !account) {
-        throw new Error("Failed to create encounter");
+        throw createSilentError("Failed to create encounter");
       }
 
       return { encounter, account };
@@ -371,6 +452,11 @@ export function CreateEncounterPage({
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       queryClient.invalidateQueries({ queryKey: ["defaultAccount"] });
       navigate(`/facility/${facilityId}/billing/account/${account.id}`);
+    },
+    onError: (error) => {
+      toast.error(
+        getEncounterCreationErrorMessage(error) || t("something_went_wrong"),
+      );
     },
   });
 

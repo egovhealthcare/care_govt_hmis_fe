@@ -49,6 +49,14 @@ import patientApi from "@/types/emr/patient/patientApi";
 import { TagConfig, TagResource } from "@/types/emr/tagConfig/tagConfig";
 import useTagConfigs from "@/types/emr/tagConfig/useTagConfig";
 import { PaginatedResponse } from "@/Utils/request/types";
+import {
+  ExtensionEntityType,
+  getCombinedExtensionProps,
+  useEntityExtensions,
+  useExtensionSchemas,
+} from "@/hooks/useExtensions";
+import { useMemo } from "react";
+import { TFunction } from "i18next";
 
 interface CreateEncounterPageProps {
   facilityId: string;
@@ -63,39 +71,61 @@ export function CreateEncounterPage({
   const queryClient = useQueryClient();
   const inpatientEncounterClass = "imp";
 
-  const encounterFormSchema = z
-    .object({
-      status: z.enum([
-        EncounterStatus.PLANNED,
-        EncounterStatus.IN_PROGRESS,
-        EncounterStatus.ON_HOLD,
-      ] as const),
-      encounter_class: z.enum(ENCOUNTER_CLASS),
-      priority: z.enum(ENCOUNTER_PRIORITY),
-      organizations: z.array(z.string()).min(1, {
-        message: t("at_least_one_department_is_required"),
-      }),
-      start_date: z.string(),
-      tags: z.array(z.string()),
-    })
-    .refine(
-      (data) => {
-        if (
-          data.status !== EncounterStatus.PLANNED &&
-          new Date(data.start_date) > new Date()
-        ) {
-          return false;
-        }
-        return true;
-      },
-      {
-        message: t("encounter_future_date_restriction"),
-        path: ["start_date"],
-      },
-    );
+  const getFormSchema = (
+    t: TFunction,
+    extValidation: z.ZodType<Record<string, unknown>>,
+  ) => {
+    const encounterFormSchema = z
+      .object({
+        status: z.enum([
+          EncounterStatus.PLANNED,
+          EncounterStatus.IN_PROGRESS,
+          EncounterStatus.ON_HOLD,
+        ] as const),
+        encounter_class: z.enum(ENCOUNTER_CLASS),
+        priority: z.enum(ENCOUNTER_PRIORITY),
+        organizations: z.array(z.string()).min(1, {
+          message: t("at_least_one_department_is_required"),
+        }),
+        start_date: z.string(),
+        tags: z.array(z.string()),
+        extensions: extValidation.optional(),
+      })
+      .refine(
+        (data) => {
+          if (
+            data.status !== EncounterStatus.PLANNED &&
+            new Date(data.start_date) > new Date()
+          ) {
+            return false;
+          }
+          return true;
+        },
+        {
+          message: t("encounter_future_date_restriction"),
+          path: ["start_date"],
+        },
+      );
+    return encounterFormSchema;
+  };
 
-  const form = useForm<z.infer<typeof encounterFormSchema>>({
-    resolver: zodResolver(encounterFormSchema),
+  const { getExtensions } = useExtensionSchemas();
+
+  const ext = useMemo(
+    () =>
+      getCombinedExtensionProps(
+        getExtensions(ExtensionEntityType.encounter, "write"),
+      ),
+    [getExtensions],
+  );
+
+  const formSchema = useMemo(
+    () => getFormSchema(t, ext.validation),
+    [t, ext.validation],
+  );
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       status: EncounterStatus.IN_PROGRESS,
       encounter_class: inpatientEncounterClass,
@@ -103,7 +133,14 @@ export function CreateEncounterPage({
       organizations: [],
       start_date: new Date().toISOString(),
       tags: [],
+      extensions: ext.defaults,
     },
+  });
+
+  const extensions = useEntityExtensions({
+    entityType: ExtensionEntityType.encounter,
+    schemaType: "write",
+    form,
   });
 
   const selectedStatus = form.watch("status");
@@ -123,7 +160,7 @@ export function CreateEncounterPage({
     .filter(Boolean) as TagConfig[];
 
   const { mutate: admitPatient, isPending } = useMutation({
-    mutationFn: async (data: z.infer<typeof encounterFormSchema>) => {
+    mutationFn: async (data: z.infer<typeof formSchema>) => {
       const existingAccountsResponse = (await query(accountApi.listAccount, {
         pathParams: { facilityId },
         queryParams: {
@@ -224,7 +261,7 @@ export function CreateEncounterPage({
     },
   });
 
-  const handleSubmit = (data: z.infer<typeof encounterFormSchema>) => {
+  const handleSubmit = (data: z.infer<typeof formSchema>) => {
     admitPatient(data);
   };
 
@@ -437,6 +474,8 @@ export function CreateEncounterPage({
                       </FormItem>
                     )}
                   />
+
+                  {extensions.fields}
                 </div>
 
                 <div className="space-y-6">

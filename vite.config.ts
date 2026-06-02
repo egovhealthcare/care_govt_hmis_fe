@@ -13,12 +13,12 @@ export default defineConfig({
         "./manifest": "./src/manifest.tsx",
       },
       shared: [
-        "react", 
-        "react-dom", 
+        "react",
+        "react-dom",
         "react-i18next",
         "@tanstack/react-query",
-        "raviger"
-        ],
+        "raviger",
+      ],
     }),
     tailwindcss(),
     react(),

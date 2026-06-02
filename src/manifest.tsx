@@ -1,14 +1,11 @@
 import { lazy } from "react";
 
-import { Hash } from "lucide-react";
-
 import "./componentOverrides";
 
 import { PatientRead } from "@/types/emr/patient/patient";
 import { BookAppointmentDetails as BookAppointmentPage } from "@/pages/Appointments/BookAppointment/BookAppointmentPage";
 import CreateEncounterPage from "@/pages/Encounters/CreateEncounterPage";
 import EncounterExternalIdentifierSettings from "@/pages/Facility/settings/EncounterExternalIdentifierSettings";
-import { t } from "i18next";
 
 interface NavigationLink {
   url: string;

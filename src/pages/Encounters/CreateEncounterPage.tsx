@@ -62,6 +62,7 @@ import {
 } from "@/hooks/useExtensions";
 import { useMemo } from "react";
 import { TFunction } from "i18next";
+import { ExtensionContexts } from "@/Utils/schema/types";
 
 interface CreateEncounterPageProps {
   facilityId: string;
@@ -158,6 +159,7 @@ export function CreateEncounterPage({
   const extensions = useEntityExtensions({
     entityType: ExtensionEntityType.encounter,
     schemaType: "write",
+    context: ExtensionContexts.ip_admission_form,
     form,
   });
 

@@ -1,15 +1,44 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Hash } from "lucide-react";
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import mutate from "@/Utils/request/mutate";
+import query from "@/Utils/request/query";
 import useCurrentFacility from "@/pages/Facility/utils/useCurrentFacility";
-import facilityApi from "@/types/facility/facilityApi";
+import { RESET_PERIOD_CHOICES } from "@/types/emr/encounterConfiguration/encounterConfiguration";
+import encounterConfigurationApi from "@/types/emr/encounterConfiguration/encounterConfigurationApi";
+
+const encounterConfigSchema = z.object({
+  pattern: z.string().min(1, "Pattern is required").max(128),
+  facility_code: z.string().max(16),
+  reset_period: z.enum(RESET_PERIOD_CHOICES),
+});
+
+type EncounterConfigFormValues = z.infer<typeof encounterConfigSchema>;
 
 interface EncounterExternalIdentifierSettingsProps {
   facilityId: string;
@@ -21,32 +50,58 @@ export default function EncounterExternalIdentifierSettings({
   const { t } = useTranslation();
   const { facility, facilityId } = useCurrentFacility();
   const [editing, setEditing] = useState(false);
-  const [expression, setExpression] = useState("");
 
   const queryClient = useQueryClient();
 
+  const { data: encounterConfig, isLoading: isConfigLoading } = useQuery({
+    queryKey: ["encounter_configuration", facilityId],
+    queryFn: query(encounterConfigurationApi.get, {
+      pathParams: { facility_external_id: facilityId },
+    }),
+    enabled: !!facilityId,
+  });
+
+  const form = useForm<EncounterConfigFormValues>({
+    resolver: zodResolver(encounterConfigSchema),
+    defaultValues: {
+      pattern: "",
+      facility_code: "",
+      reset_period: RESET_PERIOD_CHOICES[0],
+    },
+  });
+
+  useEffect(() => {
+    if (encounterConfig) {
+      form.reset({
+        pattern: encounterConfig.pattern || "",
+        facility_code: encounterConfig.facility_code || "",
+        reset_period: encounterConfig.reset_period || RESET_PERIOD_CHOICES[1],
+      });
+    }
+  }, [encounterConfig, form]);
+
   const {
-    mutate: saveExpression,
+    mutate: saveConfig,
     isPending,
     isSuccess,
     isError,
-    reset,
   } = useMutation({
-    mutationFn: mutate(facilityApi.setEncounterExternalIdentifierExpression, {
-      pathParams: { facilityId },
+    mutationFn: mutate(encounterConfigurationApi.createOrUpdate, {
+      pathParams: { facility_external_id: facilityId },
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["facility", facilityId] });
+      queryClient.invalidateQueries({
+        queryKey: ["encounter_configuration", facilityId],
+      });
       setEditing(false);
     },
   });
 
-  React.useEffect(() => {
-    if (facility && !editing)
-      setExpression(facility.encounter_external_identifier_expression || "");
-  }, [facility, editing]);
+  const handleSubmit = (data: EncounterConfigFormValues) => {
+    saveConfig(data);
+  };
 
-  if (!facility) {
+  if (!facility || isConfigLoading) {
     return (
       <div className="mx-auto mt-8 w-full max-w-5xl p-8">
         <Skeleton className="mb-4 h-8 w-64" />
@@ -63,82 +118,122 @@ export default function EncounterExternalIdentifierSettings({
           <div className="flex items-center gap-2">
             <Hash className="h-5 w-5 text-gray-500" />
             <h2 className="text-xl font-semibold text-gray-900">
-              {t("encounter_external_identifier_expression")}
+              {t("encounter_series_pattern")}
             </h2>
           </div>
           <div className="mt-1 text-sm text-gray-500">
-            <div className="mb-1 font-semibold">
-              {t("encounter_external_identifier_supported_variables")}
-            </div>
+            <div className="mb-1 font-semibold">{t("supported_variables")}</div>
             <ul className="mb-2 list-inside list-disc">
-              <li>{t("encounter_external_identifier_counter")}</li>
-              <li>{t("encounter_external_identifier_year_yy")}</li>
-              <li>{t("encounter_external_identifier_year_yyyy")}</li>
+              <li>{t("encounter_identifier_token_fac_code")}</li>
+              <li>{t("encounter_identifier_token_yyyy")}</li>
+              <li>{t("encounter_identifier_token_mm")}</li>
+              <li>{t("encounter_identifier_token_dd")}</li>
+              <li>{t("encounter_identifier_token_seq")}</li>
+              <li>{t("encounter_identifier_token_class")}</li>
+              <li>{t("encounter_identifier_token_class_text")}</li>
             </ul>
             <div className="mb-1">
-              {t("encounter_external_identifier_other_characters")}
+              {t("encounter_identifier_other_characters")}
             </div>
-            <div className="mb-1">{t("arithmetic_help")}</div>
             <pre className="overflow-x-auto rounded bg-gray-100 px-3 py-2 font-mono text-xs text-gray-700">
-              {t("encounter_external_identifier_example_value")}
+              {t("encounter_identifier_example_value")}
             </pre>
           </div>
         </div>
         <div className="flex w-full max-w-md flex-col gap-4">
-          {editing ? (
-            <>
-              <Input
-                value={expression}
-                onChange={(e) => setExpression(e.target.value)}
-                className="w-full text-base"
-                autoFocus
-                aria-label={t("encounter_external_identifier_expression")}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={form.control}
+                name="pattern"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("pattern")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        className="w-full text-base"
+                        disabled={!editing}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="facility_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("facility_code")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        className="w-full text-base"
+                        maxLength={16}
+                        disabled={!editing}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reset_period"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("reset_period")}</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={!editing}
+                    >
+                      <FormControl>
+                        <SelectTrigger ref={field.ref} className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {RESET_PERIOD_CHOICES.map((period) => (
+                          <SelectItem key={period} value={period}>
+                            {t(`reset_period_${period}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:gap-2">
-                <Button
-                  onClick={() =>
-                    saveExpression({
-                      encounter_external_identifier_expression: expression,
-                    })
-                  }
-                  disabled={isPending || !expression.trim()}
-                  className="w-full sm:w-auto"
-                >
-                  {isPending ? t("saving") : t("save")}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(false);
-                    setExpression(
-                      facility.encounter_external_identifier_expression || "",
-                    );
-                    reset();
-                  }}
-                  className="w-full sm:w-auto"
-                >
-                  {t("cancel")}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="block w-full min-w-[200px] rounded border border-gray-200 bg-gray-100 px-3 py-2 font-mono text-base text-gray-800">
-                {facility.encounter_external_identifier_expression || (
-                  <span className="text-gray-400">-</span>
+                {editing && (
+                  <Button
+                    type="submit"
+                    disabled={isPending}
+                    className="w-full sm:w-auto"
+                  >
+                    {isPending ? t("saving") : t("save")}
+                  </Button>
                 )}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setEditing(true)}
-                className="mt-2 w-full sm:w-auto"
-              >
-                {t("edit")}
-              </Button>
-            </>
+              </div>
+            </form>
+          </Form>
+          {!editing && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditing(true)}
+              className="w-full sm:w-auto"
+            >
+              {t("edit")}
+            </Button>
           )}
         </div>
-        {isSuccess && !editing && (
+        {isSuccess && (
           <div className="mt-2 text-sm text-green-600">
             {t("saved_successfully")}
           </div>

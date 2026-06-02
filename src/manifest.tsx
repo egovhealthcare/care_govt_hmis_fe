@@ -60,7 +60,7 @@ const manifest: Manifest = {
     {
       url: "settings/encounter",
       name: t("encounter_settings"),
-      icon: <Hash />,
+      icon: <Hash className="size-3 text-gray-500" />,
     },
   ],
   userNavItems: [],

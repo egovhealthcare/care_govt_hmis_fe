@@ -5,6 +5,7 @@
   "admit_patient": "Admit Patient",
   "encounter_external_identifier_settings": "Encounter Identifier Settings",
   "encounter_series_pattern": "External Identifier Series Pattern",
+  "encounter_identifier_settings": "Encounter Identifier Settings",
   "supported_variables": "Supported variables:",
   "encounter_identifier_token_fac_code": "{FAC_CODE} — Facility code",
   "encounter_identifier_token_yyyy": "{YYYY} — Current year (4-digit)",

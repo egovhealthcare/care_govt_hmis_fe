@@ -11,7 +11,7 @@ export default function FacilityHomeActions() {
       >
         <Hash className="size-3" />
 
-        {t("encounter_settings")}
+        {t("encounter_identifier_settings")}
       </Link>
     </div>
   );

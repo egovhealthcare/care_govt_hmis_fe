@@ -10,9 +10,15 @@ export default {
     method: HttpMethod.GET,
     TRes: Type<EncounterConfigurationRead>(),
   },
-  createOrUpdate: {
+  create: {
     path: "/api/care_state_hmis/facility/{facility_external_id}/identifier-config/",
     method: HttpMethod.POST,
+    TBody: Type<EncounterConfigurationCreate>(),
+    TRes: Type<EncounterConfigurationRead>(),
+  },
+  update: {
+    path: "/api/care_state_hmis/facility/{facility_external_id}/identifier-config/",
+    method: HttpMethod.PUT,
     TBody: Type<EncounterConfigurationCreate>(),
     TRes: Type<EncounterConfigurationRead>(),
   },

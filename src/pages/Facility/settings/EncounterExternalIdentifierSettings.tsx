@@ -4,6 +4,7 @@ import { Hash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -80,16 +81,25 @@ export default function EncounterExternalIdentifierSettings({
     }
   }, [encounterConfig, form]);
 
-  const {
-    mutate: saveConfig,
-    isPending,
-    isSuccess,
-    isError,
-  } = useMutation({
-    mutationFn: mutate(encounterConfigurationApi.createOrUpdate, {
+  const { mutate: saveConfig, isPending } = useMutation({
+    mutationFn: mutate(encounterConfigurationApi.create, {
       pathParams: { facility_external_id: facilityId },
     }),
     onSuccess: () => {
+      toast.success(t("saved_successfully"));
+      queryClient.invalidateQueries({
+        queryKey: ["encounter_configuration", facilityId],
+      });
+      setEditing(false);
+    },
+  });
+
+  const { mutate: updateConfig, isPending: isUpdatePending } = useMutation({
+    mutationFn: mutate(encounterConfigurationApi.update, {
+      pathParams: { facility_external_id: facilityId },
+    }),
+    onSuccess: () => {
+      toast.success(t("saved_successfully"));
       queryClient.invalidateQueries({
         queryKey: ["encounter_configuration", facilityId],
       });
@@ -98,7 +108,11 @@ export default function EncounterExternalIdentifierSettings({
   });
 
   const handleSubmit = (data: EncounterConfigFormValues) => {
-    saveConfig(data);
+    if (encounterConfig?.pattern) {
+      updateConfig(data);
+    } else {
+      saveConfig(data);
+    }
   };
 
   if (!facility || isConfigLoading) {
@@ -213,10 +227,10 @@ export default function EncounterExternalIdentifierSettings({
                 {editing && (
                   <Button
                     type="submit"
-                    disabled={isPending}
+                    disabled={isPending || isUpdatePending}
                     className="w-full sm:w-auto"
                   >
-                    {isPending ? t("saving") : t("save")}
+                    {isPending || isUpdatePending ? t("saving") : t("save")}
                   </Button>
                 )}
               </div>
@@ -233,14 +247,6 @@ export default function EncounterExternalIdentifierSettings({
             </Button>
           )}
         </div>
-        {isSuccess && (
-          <div className="mt-2 text-sm text-green-600">
-            {t("saved_successfully")}
-          </div>
-        )}
-        {isError && (
-          <div className="mt-2 text-sm text-red-600">{t("error")}</div>
-        )}
       </div>
     </div>
   );

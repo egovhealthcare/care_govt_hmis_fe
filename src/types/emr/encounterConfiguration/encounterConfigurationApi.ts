@@ -6,18 +6,18 @@ import {
 
 export default {
   get: {
-    path: "/api/care_state_hmis/facility/{facility_external_id}/identifier-config/",
+    path: "/api/encounter_identifiers/facility/{facility_external_id}/identifier-config/",
     method: HttpMethod.GET,
     TRes: Type<EncounterConfigurationRead>(),
   },
   create: {
-    path: "/api/care_state_hmis/facility/{facility_external_id}/identifier-config/",
+    path: "/api/encounter_identifiers/facility/{facility_external_id}/identifier-config/",
     method: HttpMethod.POST,
     TBody: Type<EncounterConfigurationCreate>(),
     TRes: Type<EncounterConfigurationRead>(),
   },
   update: {
-    path: "/api/care_state_hmis/facility/{facility_external_id}/identifier-config/",
+    path: "/api/encounter_identifiers/facility/{facility_external_id}/identifier-config/",
     method: HttpMethod.PUT,
     TBody: Type<EncounterConfigurationCreate>(),
     TRes: Type<EncounterConfigurationRead>(),

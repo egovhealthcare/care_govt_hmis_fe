@@ -37,6 +37,7 @@ interface Manifest {
         canWritePatient?: boolean;
       }>
     >;
+    FacilityHomeActions: React.LazyExoticComponent<React.FC>;
   };
   navItems?: NavigationLink[];
   userNavItems?: NavigationLink[];
@@ -65,14 +66,10 @@ const manifest: Manifest = {
     PatientHomeQuickActions: lazy(
       () => import("@/components/Patient/PatientHomeQuickActions"),
     ),
+    FacilityHomeActions: lazy(
+      () => import("@/components/Facility/FacilityHomeActions"),
+    ),
   },
-  navItems: [
-    {
-      url: "settings/encounter",
-      name: t("encounter_settings"),
-      icon: <Hash className="size-3 text-gray-500" />,
-    },
-  ],
   userNavItems: [],
   adminNavItems: [],
 };

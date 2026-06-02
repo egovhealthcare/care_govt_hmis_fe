@@ -209,10 +209,12 @@ export function CreateEncounterPage({
         patient: patientId,
         facility: facilityId,
         period: { start: data.start_date },
+        extensions: data.extensions,
       };
 
       if (isKind && locationSelection) {
         encounterBody.extensions = {
+          ...(encounterBody.extensions || {}),
           encounter_kind_location_assignment: {
             location: locationSelection.location.id,
           },

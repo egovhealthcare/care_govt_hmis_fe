@@ -11,7 +11,7 @@ export const SCHEDULE_SERVICE_TYPE_KEY = "care_schedule_service_type";
 
 export const scheduleServiceTypeAtom = atomWithStorage<SchedulableResourceType>(
   SCHEDULE_SERVICE_TYPE_KEY,
-  SchedulableResourceType.Practitioner,
+  SchedulableResourceType.HealthcareService,
 );
 
 /**

@@ -5,7 +5,7 @@ import { navigate } from "raviger";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { toast, Toaster } from "sonner";
 import * as z from "zod";
 import { TFunction } from "i18next";
 
@@ -459,6 +459,7 @@ export function CreateEncounterPage({
       navigate(`/facility/${facilityId}/billing/account/${account.id}`);
     },
     onError: (error) => {
+      console.log("Admit Patient Error:", error);
       toast.error(
         getEncounterCreationErrorMessage(error) || t("something_went_wrong"),
       );
@@ -799,6 +800,17 @@ export function CreateEncounterPage({
             shouldValidate: true,
           });
         }}
+      />
+
+      <Toaster
+        position="top-center"
+        theme="light"
+        richColors
+        expand
+        // For `richColors` to work, pass at-least an empty object.
+        // Refer: https://github.com/shadcn-ui/ui/issues/2234.
+        toastOptions={{}}
+        closeButton
       />
     </div>
   );

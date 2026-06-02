@@ -176,7 +176,7 @@ const BookAppointmentDetailsBase = ({
           </div>
         </div>
       </div>
-      {selectedSlotId && (
+      {selectedSlotId ? (
         <div className="mt-2 hidden p-4 shadow sm:flex">
           <div className="ml-auto flex gap-4">
             <Button
@@ -201,6 +201,24 @@ const BookAppointmentDetailsBase = ({
               </Button>
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex justify-end gap-4 p-4 shadow">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              if (window.history.length > 1) {
+                // To do: construct the profile url from patientData params
+                window.history.go(-2);
+              } else {
+                navigate(`/facility/${facilityId}/patient/${patientId}`);
+              }
+            }}
+          >
+            {t("cancel")}
+          </Button>
         </div>
       )}
       <Drawer open={isOpen} onOpenChange={handleIsOpen}>

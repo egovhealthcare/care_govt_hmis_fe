@@ -30,6 +30,13 @@ interface Manifest {
         className?: string;
       }>
     >;
+    PatientInfoCardActions: React.LazyExoticComponent<
+      React.FC<{
+        patient: PatientRead;
+        facilityId: string;
+        canWritePatient?: boolean;
+      }>
+    >;
   };
   navItems?: NavigationLink[];
   userNavItems?: NavigationLink[];
@@ -52,6 +59,9 @@ const manifest: Manifest = {
   },
   extends: [],
   components: {
+    PatientInfoCardActions: lazy(
+      () => import("./components/Patient/PatientInfoCardActions"),
+    ),
     PatientHomeQuickActions: lazy(
       () => import("@/components/Patient/PatientHomeQuickActions"),
     ),

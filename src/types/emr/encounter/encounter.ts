@@ -254,6 +254,7 @@ export interface EncounterCreate extends Omit<
   appointment?: string;
   external_identifier?: string;
   discharge_summary_advice?: string;
+  extensions?: Record<string, unknown>;
 }
 
 export type EncounterEdit = EncounterBase;

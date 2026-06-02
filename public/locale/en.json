@@ -27,5 +27,6 @@
   "cancel": "Cancel",
   "edit": "Edit",
   "saved_successfully": "Saved successfully",
-  "error": "An error occurred. Please try again."
+  "error": "An error occurred. Please try again.",
+  "enabled_encounter_classes": "Enabled Encounter Classes"
 }

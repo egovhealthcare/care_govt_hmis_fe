@@ -1,3 +1,5 @@
+import { EncounterClass } from "../encounter/encounter";
+
 export const RESET_PERIOD_CHOICES = [
   "none",
   "yearly",
@@ -13,6 +15,7 @@ export interface EncounterConfigurationRead {
   pattern: string;
   facility_code: string;
   reset_period?: ResetPeriod;
+  enabled_encounter_classes: EncounterClass[];
   created_date: string;
   last_updated_date: string;
 }
@@ -21,4 +24,5 @@ export interface EncounterConfigurationCreate {
   pattern: string;
   facility_code: string;
   reset_period: ResetPeriod;
+  enabled_encounter_classes: EncounterClass[];
 }

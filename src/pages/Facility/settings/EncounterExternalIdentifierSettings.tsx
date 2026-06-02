@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 import {
   Select,
@@ -30,6 +31,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import mutate from "@/Utils/request/mutate";
 import query from "@/Utils/request/query";
 import useCurrentFacility from "@/pages/Facility/utils/useCurrentFacility";
+import {
+  ENCOUNTER_CLASS,
+} from "@/types/emr/encounter/encounter";
 import { RESET_PERIOD_CHOICES } from "@/types/emr/encounterConfiguration/encounterConfiguration";
 import encounterConfigurationApi from "@/types/emr/encounterConfiguration/encounterConfigurationApi";
 
@@ -37,6 +41,9 @@ const encounterConfigSchema = z.object({
   pattern: z.string().min(1, "Pattern is required").max(128),
   facility_code: z.string().max(16),
   reset_period: z.enum(RESET_PERIOD_CHOICES),
+  enabled_encounter_classes: z
+    .array(z.enum(ENCOUNTER_CLASS))
+    .min(1, "At least one encounter class is required"),
 });
 
 type EncounterConfigFormValues = z.infer<typeof encounterConfigSchema>;
@@ -68,6 +75,7 @@ export default function EncounterExternalIdentifierSettings({
       pattern: "",
       facility_code: "",
       reset_period: RESET_PERIOD_CHOICES[0],
+      enabled_encounter_classes: [...ENCOUNTER_CLASS],
     },
   });
 
@@ -77,6 +85,10 @@ export default function EncounterExternalIdentifierSettings({
         pattern: encounterConfig.pattern || "",
         facility_code: encounterConfig.facility_code || "",
         reset_period: encounterConfig.reset_period || RESET_PERIOD_CHOICES[1],
+        enabled_encounter_classes:
+          encounterConfig.enabled_encounter_classes?.length
+            ? encounterConfig.enabled_encounter_classes
+            : [...ENCOUNTER_CLASS],
       });
     }
   }, [encounterConfig, form]);
@@ -219,6 +231,30 @@ export default function EncounterExternalIdentifierSettings({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="enabled_encounter_classes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("enabled_encounter_classes")}</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        options={ENCOUNTER_CLASS.map((value) => ({
+                          label: t(`encounter_class__${value}`),
+                          value,
+                        }))}
+                        value={field.value}
+                        onValueChange={(values) =>
+                          field.onChange(values)
+                        }
+                        placeholder={t("enabled_encounter_classes")}
+                        disabled={!editing}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

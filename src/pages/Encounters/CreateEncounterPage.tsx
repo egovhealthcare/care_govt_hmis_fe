@@ -49,7 +49,10 @@ import {
 import patientApi from "@/types/emr/patient/patientApi";
 import { TagConfig, TagResource } from "@/types/emr/tagConfig/tagConfig";
 import useTagConfigs from "@/types/emr/tagConfig/useTagConfig";
+import { ExtensionEntityType } from "@/types/extensions/extensions";
 import { LocationRead } from "@/types/location/location";
+
+import useExtensionSchemas from "@/hooks/useExtensionSchemas";
 import { BatchReplacementType } from "@/types/superBatch/superBatch";
 import superBatchApi from "@/types/superBatch/superBatchApi";
 import { PaginatedResponse } from "@/Utils/request/types";
@@ -67,6 +70,11 @@ export function CreateEncounterPage({
   const queryClient = useQueryClient();
   const inpatientEncounterClass = "imp";
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+
+  const { getConfigs: getExtensionConfigs } = useExtensionSchemas();
+  const allowSelectingKindLocation = getExtensionConfigs(
+    ExtensionEntityType.encounter,
+  ).some((config) => config.name === "encounter_kind_location_assignment");
 
   const encounterFormSchema = z
     .object({
@@ -622,6 +630,7 @@ export function CreateEncounterPage({
         open={locationSheetOpen}
         onOpenChange={setLocationSheetOpen}
         facilityId={facilityId}
+        allowSelectingKindLocation={allowSelectingKindLocation}
         onChange={(value) => {
           form.setValue("location_selection", value, {
             shouldDirty: true,

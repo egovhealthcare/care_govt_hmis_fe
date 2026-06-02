@@ -24,6 +24,12 @@ interface EncounterLocationAssignmentSheetProps {
   onOpenChange: (open: boolean) => void;
   facilityId: string;
   onChange: (value: EncounterLocationSelection | undefined) => void;
+  /**
+   * When true, the user can confirm a kind-mode location (e.g. an area/ward)
+   * without picking a specific bed. When false (default), only instance-mode
+   * (bed) selections can be confirmed.
+   */
+  allowSelectingKindLocation?: boolean;
 }
 
 export function EncounterLocationAssignmentSheet({
@@ -31,6 +37,7 @@ export function EncounterLocationAssignmentSheet({
   onOpenChange,
   facilityId,
   onChange,
+  allowSelectingKindLocation = false,
 }: EncounterLocationAssignmentSheetProps) {
   const { t } = useTranslation();
 
@@ -51,12 +58,13 @@ export function EncounterLocationAssignmentSheet({
   const selectedBed = navigation.selectedBed;
   const currentKind = navigation.selectedLocation;
 
-  const canConfirm = !!selectedBed || !!currentKind;
+  const canConfirmKind = allowSelectingKindLocation && !!currentKind;
+  const canConfirm = !!selectedBed || canConfirmKind;
 
   let confirmLabel = t("assign_to_location");
   if (selectedBed) {
     confirmLabel = t("assign_bed");
-  } else if (currentKind) {
+  } else if (canConfirmKind && currentKind) {
     confirmLabel = t("assign_to_location_named", { name: currentKind.name });
   }
 
@@ -66,7 +74,7 @@ export function EncounterLocationAssignmentSheet({
       handleOpenChange(false);
       return;
     }
-    if (currentKind) {
+    if (canConfirmKind && currentKind) {
       onChange({ mode: "kind", location: currentKind });
       handleOpenChange(false);
     }

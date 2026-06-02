@@ -177,6 +177,7 @@ export function CreateEncounterPage({
           .object({
             mode: z.enum(["instance", "kind"]),
             location: z.custom<LocationRead>(),
+            hierarchy: z.array(z.string()).optional(),
           })
           .optional(),
       })
@@ -288,10 +289,14 @@ export function CreateEncounterPage({
       };
 
       if (isKind && locationSelection) {
+        const hierarchy = locationSelection.hierarchy;
         encounterBody.extensions = {
           ...(encounterBody.extensions || {}),
           encounter_kind_location_assignment: {
-            location: locationSelection.location.id,
+            location:
+              hierarchy && hierarchy.length > 0
+                ? hierarchy.join(" > ")
+                : locationSelection.location.name,
           },
         };
       }

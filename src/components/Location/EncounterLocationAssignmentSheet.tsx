@@ -17,7 +17,7 @@ import { useLocationNavigation } from "./hooks/useLocationNavigation";
 
 export type EncounterLocationSelection =
   | { mode: "instance"; location: LocationRead }
-  | { mode: "kind"; location: LocationRead };
+  | { mode: "kind"; location: LocationRead; hierarchy: string[] };
 
 interface EncounterLocationAssignmentSheetProps {
   open: boolean;
@@ -75,7 +75,11 @@ export function EncounterLocationAssignmentSheet({
       return;
     }
     if (canConfirmKind && currentKind) {
-      onChange({ mode: "kind", location: currentKind });
+      onChange({
+        mode: "kind",
+        location: currentKind,
+        hierarchy: navigation.locationHistory.map((l) => l.name),
+      });
       handleOpenChange(false);
     }
   };

@@ -15,7 +15,12 @@
 import { t } from "i18next";
 import { toast } from "sonner";
 
-import { HTTPError, StructuredError } from "@/Utils/request/types";
+import {
+  HTTPError,
+  HTTPErrorCause,
+  StructuredError,
+} from "@/Utils/request/types";
+import { BatchSubResponse } from "@/types/superBatch/superBatch";
 
 export function handleHttpError(error: Error) {
   if (("silent" in error && error.silent) || error.name === "AbortError") {
@@ -40,6 +45,11 @@ export function handleHttpError(error: Error) {
   }
 
   if (isBadRequest(error)) {
+    if (isBatchRequestError(error)) {
+      handleBatchRequestError(error);
+      return;
+    }
+
     if (Array.isArray(cause)) {
       let handled = false;
       for (const obj of cause) {
@@ -107,9 +117,7 @@ function handleStructuredErrors(cause: StructuredError) {
           const field = errorFields.find(
             (f) => typeof e[f] === "string" && (e[f] as string).length > 0,
           );
-          toast.error(
-            field ? (e[field] as string) : t("something_went_wrong"),
-          );
+          toast.error(field ? (e[field] as string) : t("something_went_wrong"));
         }
       });
       return;
@@ -145,4 +153,27 @@ function handlePydanticErrors(errors: PydanticError[]) {
       duration: 8000,
     });
   });
+}
+
+function isBatchRequestError(error: HTTPError) {
+  return isBadRequest(error) && error.cause && "results" in error.cause;
+}
+
+function handleBatchRequestError(error: HTTPError) {
+  const cause = error.cause as { results: BatchSubResponse<HTTPErrorCause>[] };
+
+  const firstError = cause.results.find((result) => result.status_code >= 400);
+
+  if (!firstError) {
+    return;
+  }
+
+  handleHttpError(
+    new HTTPError({
+      message: `Sub-request ${firstError.reference_id} failed with status ${firstError.status_code}`,
+      status: firstError.status_code,
+      silent: false,
+      cause: firstError.data,
+    }),
+  );
 }

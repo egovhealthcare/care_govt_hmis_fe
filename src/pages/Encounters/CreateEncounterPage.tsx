@@ -63,6 +63,7 @@ import {
 import { useMemo } from "react";
 import { TFunction } from "i18next";
 import { ExtensionContexts } from "@/Utils/schema/types";
+import { Separator } from "@/components/ui/separator";
 
 interface CreateEncounterPageProps {
   facilityId: string;
@@ -580,8 +581,6 @@ export function CreateEncounterPage({
                       </FormItem>
                     )}
                   />
-
-                  {extensions.fields}
                 </div>
 
                 <div className="space-y-6">
@@ -644,6 +643,8 @@ export function CreateEncounterPage({
                   />
                 </div>
               </div>
+              <Separator />
+              {extensions.fields}
 
               <div className="flex flex-col-reverse justify-end gap-3 border-t border-gray-200 pt-6 sm:flex-row">
                 <Button

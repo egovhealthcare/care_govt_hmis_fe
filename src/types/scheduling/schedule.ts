@@ -26,9 +26,9 @@ export enum AvailabilitySlotType {
 }
 
 export enum SchedulableResourceType {
-  Practitioner = "practitioner",
-  Location = "location",
   HealthcareService = "healthcare_service",
+  Location = "location",
+  Practitioner = "practitioner",
 }
 
 export const SCHEDULABLE_RESOURCE_TYPE_COLORS = {

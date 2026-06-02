@@ -1,13 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Stethoscope } from "lucide-react";
+import { MapPin, Stethoscope } from "lucide-react";
 import { navigate } from "raviger";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import * as z from "zod";
 
+import { EncounterLocationAssignmentSheet } from "@/components/Location/EncounterLocationAssignmentSheet";
 import { TagSelectorPopover } from "@/components/Tags/TagAssignmentSheet";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -28,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import FacilityOrganizationSelector from "@/pages/Facility/settings/organizations/components/FacilityOrganizationSelector";
-import query from "@/Utils/request/query";
+import query, { callApi } from "@/Utils/request/query";
 
 import {
   AccountBillingStatus,
@@ -40,14 +43,18 @@ import {
   ENCOUNTER_CLASS,
   ENCOUNTER_CLASS_ICONS,
   ENCOUNTER_PRIORITY,
-  EncounterCreate,
   EncounterRead,
   EncounterStatus,
 } from "@/types/emr/encounter/encounter";
-import encounterApi from "@/types/emr/encounter/encounterApi";
 import patientApi from "@/types/emr/patient/patientApi";
 import { TagConfig, TagResource } from "@/types/emr/tagConfig/tagConfig";
 import useTagConfigs from "@/types/emr/tagConfig/useTagConfig";
+import { ExtensionEntityType } from "@/types/extensions/extensions";
+import { LocationRead } from "@/types/location/location";
+
+import useExtensionSchemas from "@/hooks/useExtensionSchemas";
+import { BatchReplacementType } from "@/types/superBatch/superBatch";
+import superBatchApi from "@/types/superBatch/superBatchApi";
 import { PaginatedResponse } from "@/Utils/request/types";
 
 interface CreateEncounterPageProps {
@@ -62,6 +69,12 @@ export function CreateEncounterPage({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const inpatientEncounterClass = "imp";
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+
+  const { getConfigs: getExtensionConfigs } = useExtensionSchemas();
+  const allowSelectingKindLocation = getExtensionConfigs(
+    ExtensionEntityType.encounter,
+  ).some((config) => config.name === "encounter_kind_location_assignment");
 
   const encounterFormSchema = z
     .object({
@@ -77,6 +90,12 @@ export function CreateEncounterPage({
       }),
       start_date: z.string(),
       tags: z.array(z.string()),
+      location_selection: z
+        .object({
+          mode: z.enum(["instance", "kind"]),
+          location: z.custom<LocationRead>(),
+        })
+        .optional(),
     })
     .refine(
       (data) => {
@@ -103,6 +122,7 @@ export function CreateEncounterPage({
       organizations: [],
       start_date: new Date().toISOString(),
       tags: [],
+      location_selection: undefined,
     },
   });
 
@@ -139,9 +159,36 @@ export function CreateEncounterPage({
 
       const existingAccount = existingAccountsResponse.results[0];
 
+      const locationSelection = data.location_selection;
+      const isInstance = locationSelection?.mode === "instance";
+      const isKind = locationSelection?.mode === "kind";
+
+      const encounterBody: Record<string, unknown> = {
+        status: data.status,
+        encounter_class: data.encounter_class,
+        priority: data.priority,
+        organizations: data.organizations,
+        tags: data.tags,
+        patient: patientId,
+        facility: facilityId,
+        period: { start: data.start_date },
+      };
+
+      if (isKind && locationSelection) {
+        encounterBody.extensions = {
+          encounter_kind_location_assignment: {
+            location: locationSelection.location.id,
+          },
+        };
+      }
+
+      const requests = [];
+
       if (existingAccount) {
-        await query(accountApi.updateAccount, {
-          pathParams: { facilityId, accountId: existingAccount.id },
+        requests.push({
+          reference_id: "closeExistingAccount",
+          url: `/api/v1/facility/${facilityId}/account/${existingAccount.id}/`,
+          method: "PUT" as const,
           body: {
             id: existingAccount.id,
             name: existingAccount.name,
@@ -160,60 +207,117 @@ export function CreateEncounterPage({
             extensions: existingAccount.extensions,
             primary_encounter: existingAccount.primary_encounter?.id,
           },
-          silent: true,
-        })({ signal: new AbortController().signal });
+        });
       }
 
-      const encounterRequest: EncounterCreate = {
-        ...data,
-        patient: patientId,
-        facility: facilityId,
-        period: {
-          start: data.start_date,
-        },
-        tags: data.tags,
-      };
+      requests.push({
+        reference_id: "encounter",
+        url: `/api/v1/encounter/`,
+        method: "POST" as const,
+        body: encounterBody,
+      });
 
-      const encounter = (await query(encounterApi.create, {
-        body: encounterRequest,
-      })({ signal: new AbortController().signal })) as EncounterRead;
-
-      const account = (await query(accountApi.createAccount, {
-        pathParams: { facilityId },
+      requests.push({
+        reference_id: "createAccount",
+        url: `/api/v1/facility/${facilityId}/account/`,
+        method: "POST" as const,
         body: {
           name: patientQuery.data?.name || t("account"),
           description: null,
           status: AccountStatus.active,
           billing_status: AccountBillingStatus.open,
-          service_period: {
-            start: data.start_date,
-          },
+          service_period: { start: data.start_date },
           patient: patientId,
           extensions: {},
         },
-      })({ signal: new AbortController().signal })) as AccountRead;
+      });
 
-      const updatedAccount = (await query(accountApi.updateAccount, {
-        pathParams: { facilityId, accountId: account.id },
+      requests.push({
+        reference_id: "linkAccount",
+        url: `/api/v1/facility/${facilityId}/account/{accountId}/`,
+        method: "PUT" as const,
         body: {
-          id: account.id,
-          name: account.name,
-          description: account.description,
-          status: account.status,
-          billing_status: account.billing_status,
-          service_period: {
-            start: account.service_period?.start || data.start_date,
-            ...(account.service_period?.end && {
-              end: account.service_period.end,
-            }),
-          },
+          name: patientQuery.data?.name || t("account"),
+          description: null,
+          status: AccountStatus.active,
+          billing_status: AccountBillingStatus.open,
+          service_period: { start: data.start_date },
           patient: patientId,
-          extensions: account.extensions,
-          primary_encounter: encounter.id,
+          extensions: {},
+          primary_encounter: "{primary_encounter}",
         },
-      })({ signal: new AbortController().signal })) as AccountRead;
+        replacements: [
+          {
+            source_path: { reference_id: "createAccount", path: "id" },
+            value_path: {
+              reference_id: "linkAccount",
+              path: "accountId",
+              type: BatchReplacementType.url,
+            },
+          },
+          {
+            source_path: { reference_id: "encounter", path: "id" },
+            value_path: {
+              reference_id: "linkAccount",
+              path: "primary_encounter",
+              type: BatchReplacementType.body,
+            },
+          },
+        ],
+      });
 
-      return { encounter, account: updatedAccount };
+      if (isInstance && locationSelection) {
+        const bed = locationSelection.location;
+        requests.push({
+          reference_id: "locationAssociation",
+          url: `/api/v1/facility/${facilityId}/location/${bed.id}/association/`,
+          method: "POST" as const,
+          body: {
+            encounter: "{encounter}",
+            start_datetime: data.start_date,
+            status: "active",
+          },
+          replacements: [
+            {
+              source_path: { reference_id: "encounter", path: "id" },
+              value_path: {
+                reference_id: "locationAssociation",
+                path: "encounter",
+                type: BatchReplacementType.body,
+              },
+            },
+          ],
+        });
+        requests.push({
+          reference_id: "locationOccupied",
+          url: `/api/v1/facility/${facilityId}/location/${bed.id}/`,
+          method: "PUT" as const,
+          body: {
+            ...bed,
+            location_type: bed.location_type?.code
+              ? bed.location_type
+              : undefined,
+            operational_status: "O",
+          },
+        });
+      }
+
+      const batch = await callApi(superBatchApi.execute, {
+        body: { requests },
+      });
+
+      const encounter = batch.results.find(
+        (r) => r.reference_id === "encounter",
+      )?.data as EncounterRead | undefined;
+      const account = batch.results.find(
+        (r) => r.reference_id === "linkAccount",
+      )?.data as AccountRead | undefined;
+
+      if (!encounter || !account) {
+        throw new Error("Failed to create encounter");
+      }
+
+      return { encounter, account };
     },
     onSuccess: ({ account }) => {
       toast.success(t("encounter_created"));
@@ -460,6 +564,43 @@ export function CreateEncounterPage({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name="location_selection"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("location")}</FormLabel>
+                        <FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between font-normal"
+                            onClick={() => setLocationSheetOpen(true)}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <MapPin className="size-4 text-gray-500" />
+                              <span className="truncate">
+                                {field.value
+                                  ? field.value.location.name
+                                  : t("select_location")}
+                              </span>
+                            </span>
+                            {field.value && (
+                              <Badge variant="secondary">
+                                {t(
+                                  field.value.mode === "instance"
+                                    ? "bed"
+                                    : "area",
+                                )}
+                              </Badge>
+                            )}
+                          </Button>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 
@@ -484,6 +625,19 @@ export function CreateEncounterPage({
           </Form>
         </CardContent>
       </Card>
+
+      <EncounterLocationAssignmentSheet
+        open={locationSheetOpen}
+        onOpenChange={setLocationSheetOpen}
+        facilityId={facilityId}
+        allowSelectingKindLocation={allowSelectingKindLocation}
+        onChange={(value) => {
+          form.setValue("location_selection", value, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }}
+      />
     </div>
   );
 }

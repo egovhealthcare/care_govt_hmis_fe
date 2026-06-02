@@ -29,5 +29,6 @@
   "edit": "Edit",
   "saved_successfully": "Saved successfully",
   "error": "An error occurred. Please try again.",
-  "enabled_encounter_classes": "Enabled Encounter Classes"
+  "enabled_encounter_classes": "Enabled Encounter Classes",
+  "patient_has_open_account": "Patient has an open account"
 }

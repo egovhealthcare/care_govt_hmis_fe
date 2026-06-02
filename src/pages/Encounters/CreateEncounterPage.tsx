@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Stethoscope } from "lucide-react";
+import { AlertTriangle, MapPin, Stethoscope } from "lucide-react";
 import { navigate } from "raviger";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { MonetaryDisplay } from "@/components/ui/monetary-display";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import FacilityOrganizationSelector from "@/pages/Facility/settings/organizations/components/FacilityOrganizationSelector";
+import { isPositive } from "@/Utils/decimal";
 import query, { callApi } from "@/Utils/request/query";
 
 import {
@@ -180,9 +182,10 @@ export function CreateEncounterPage({
     .map((tagQuery) => tagQuery.data)
     .filter(Boolean) as TagConfig[];
 
-  const { mutate: admitPatient, isPending } = useMutation({
-    mutationFn: async (data: z.infer<typeof formSchema>) => {
-      const existingAccountsResponse = (await query(accountApi.listAccount, {
+  const existingOpenAccountQuery = useQuery({
+    queryKey: ["accounts", "open", facilityId, patientId],
+    queryFn: async ({ signal }) =>
+      (await query(accountApi.listAccount, {
         pathParams: { facilityId },
         queryParams: {
           patient: patientId,
@@ -191,12 +194,15 @@ export function CreateEncounterPage({
           limit: 1,
         },
         silent: true,
-      })({
-        signal: new AbortController().signal,
-      })) as PaginatedResponse<AccountRead>;
+      })({ signal })) as PaginatedResponse<AccountRead>,
+  });
+  const existingAccount = existingOpenAccountQuery.data?.results[0];
+  const hasOutstandingBalance = existingAccount
+    ? isPositive(existingAccount.total_balance)
+    : false;
 
-      const existingAccount = existingAccountsResponse.results[0];
-
+  const { mutate: admitPatient, isPending } = useMutation({
+    mutationFn: async (data: z.infer<typeof formSchema>) => {
       const locationSelection = data.location_selection;
       const isInstance = locationSelection?.mode === "instance";
       const isKind = locationSelection?.mode === "kind";
@@ -398,8 +404,27 @@ export function CreateEncounterPage({
       </div>
 
       <Card className="border-gray-200 shadow-sm">
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg">{patientName}</CardTitle>
+          {existingAccount && hasOutstandingBalance && (
+            <div
+              role="alert"
+              className="flex shrink-0 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900"
+            >
+              <AlertTriangle className="size-3.5 shrink-0 text-amber-600" />
+              <div className="min-w-0 leading-relaxed">
+                <div className="text-amber-800">
+                  <span className="font-medium">
+                    {t("patient_has_open_account")}
+                  </span>{" "}
+                  <span>{t("outstanding_balance")}:</span>{" "}
+                  <span className="font-semibold text-amber-950">
+                    <MonetaryDisplay amount={existingAccount.total_balance} />
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -658,7 +683,11 @@ export function CreateEncounterPage({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isPending || patientQuery.isLoading}
+                  disabled={
+                    isPending ||
+                    patientQuery.isLoading ||
+                    existingOpenAccountQuery.isLoading
+                  }
                 >
                   {isPending ? t("creating") : t("create_encounter")}
                 </Button>

@@ -1,10 +1,14 @@
 import { lazy } from "react";
 
+import { Hash } from "lucide-react";
+
 import "./componentOverrides";
 
 import { PatientRead } from "@/types/emr/patient/patient";
 import { BookAppointmentDetails as BookAppointmentPage } from "@/pages/Appointments/BookAppointment/BookAppointmentPage";
 import CreateEncounterPage from "@/pages/Encounters/CreateEncounterPage";
+import EncounterExternalIdentifierSettings from "@/pages/Facility/settings/EncounterExternalIdentifierSettings";
+import { t } from "i18next";
 
 interface NavigationLink {
   url: string;
@@ -33,6 +37,7 @@ interface Manifest {
         canWritePatient?: boolean;
       }>
     >;
+    FacilityHomeActions: React.LazyExoticComponent<React.FC>;
   };
   navItems?: NavigationLink[];
   userNavItems?: NavigationLink[];
@@ -49,6 +54,9 @@ const manifest: Manifest = {
       facilityId,
       patientId,
     }) => <CreateEncounterPage facilityId={facilityId} patientId={patientId} />,
+    "/facility/:facilityId/settings/encounter": ({ facilityId }) => (
+      <EncounterExternalIdentifierSettings facilityId={facilityId} />
+    ),
   },
   extends: [],
   components: {
@@ -57,6 +65,9 @@ const manifest: Manifest = {
     ),
     PatientHomeQuickActions: lazy(
       () => import("@/components/Patient/PatientHomeQuickActions"),
+    ),
+    FacilityHomeActions: lazy(
+      () => import("@/components/Facility/FacilityHomeActions"),
     ),
   },
   userNavItems: [],

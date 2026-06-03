@@ -1,12 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
-import { useAtom } from "jotai";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { navigate } from "raviger";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast, Toaster } from "sonner";
 
-import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 
@@ -22,7 +20,7 @@ import scheduleApi from "@/types/scheduling/scheduleApi";
 import mutate from "@/Utils/request/mutate";
 
 import { ScheduleResourceFormState } from "@/components/Schedule/ResourceSelector";
-import { Appointment } from "@/types/scheduling/schedule";
+import { Appointment, SchedulableResourceType } from "@/types/scheduling/schedule";
 import { AppointmentDateSelection } from "./AppointmentDateSelection";
 import { AppointmentFormSection } from "./AppointmentFormSection";
 
@@ -42,9 +40,7 @@ const BookAppointmentDetailsBase = ({
   const { t } = useTranslation();
 
   const { facilityId } = useCurrentFacility();
-  const [cachedServiceType, setCachedServiceType] = useAtom(
-    scheduleServiceTypeAtom,
-  );
+
 
   const [selectedSlotId, setSelectedSlotId] = useState<string>();
   const [selectedTags, setSelectedTags] = useState<TagConfig[]>([]);
@@ -55,31 +51,8 @@ const BookAppointmentDetailsBase = ({
   const [selectedResource, setSelectedResource] =
     useState<ScheduleResourceFormState>({
       resource: null,
-      resource_type: cachedServiceType,
+      resource_type: SchedulableResourceType.HealthcareService,
     });
-
-  useEffect(() => {
-    if (
-      selectedResource.resource === null &&
-      selectedResource.resource_type !== cachedServiceType
-    ) {
-      setSelectedResource({
-        resource: null,
-        resource_type: cachedServiceType,
-      });
-    }
-  }, [
-    cachedServiceType,
-    selectedResource.resource,
-    selectedResource.resource_type,
-  ]);
-
-  const handleResourceChange = (resource: ScheduleResourceFormState) => {
-    setSelectedResource(resource);
-    if (resource.resource_type !== cachedServiceType) {
-      setCachedServiceType(resource.resource_type);
-    }
-  };
 
   const { mutateAsync: createAppointment, isPending: isCreating } = useMutation(
     {
@@ -153,7 +126,7 @@ const BookAppointmentDetailsBase = ({
             reason={reason}
             setReason={setReason}
             selectedResource={selectedResource}
-            setSelectedResource={handleResourceChange}
+            setSelectedResource={setSelectedResource}
           />
         </div>
         <div className="hidden w-full gap-6 rounded-lg bg-white p-4 shadow sm:flex sm:max-h-full sm:flex-col lg:flex-row">

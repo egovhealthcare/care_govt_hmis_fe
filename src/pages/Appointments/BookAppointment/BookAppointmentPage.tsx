@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { navigate } from "raviger";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { toast, Toaster } from "sonner";
 
 import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
@@ -297,6 +297,16 @@ const BookAppointmentDetailsBase = ({
           )}
         </DrawerContent>
       </Drawer>
+      <Toaster
+        position="top-center"
+        theme="light"
+        richColors
+        expand
+        // For `richColors` to work, pass at-least an empty object.
+        // Refer: https://github.com/shadcn-ui/ui/issues/2234.
+        toastOptions={{}}
+        closeButton
+      />{" "}
     </div>
   );
 };

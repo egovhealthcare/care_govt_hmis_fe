@@ -42,7 +42,7 @@ interface Manifest {
 }
 
 const manifest: Manifest = {
-  plugin: "care_appointment_plug",
+  plugin: "care_govt_hmis",
   routes: {
     "/facility/:facilityId/patient/:patientId/book-appointment": ({
       patientId,

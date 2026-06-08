@@ -8,6 +8,7 @@
  * Imported for side-effects from `manifest.tsx`.
  */
 import { BookAppointmentDetails } from "@/pages/Appointments/BookAppointment/BookAppointmentDetails";
+import { PaymentReconciliationSheet } from "@/pages/Facility/billing/PaymentReconciliationSheet";
 import { defineComponentOverrides } from "@/lib/hostOverrides";
 
 defineComponentOverrides({
@@ -26,5 +27,21 @@ defineComponentOverrides({
         typeof route === "string" &&
         /^(\/facility\/[^/]+)?\/patient(s\/home|\/[^/]+)/.test(route),
     },
+  },
+  PaymentReconciliationSheet: {
+    component: PaymentReconciliationSheet,
+    description:
+      "Overrides the host's PaymentReconciliationSheet with a version that supports reconciling payments for appointments.",
+    // Scope to the route that mounts `PaymentReconciliationSheet` today:
+    //   - FacilityBilling: /facility/:facilityId/billing/reconcile-payments
+    // Anywhere else, the override is skipped and the host's base
+    // component renders.
+    // condition: {
+    //   custom: ({ route }) =>
+    //     typeof route === "string" &&
+    //     /^\/facility\/[^/]+\/billing\/invoices\/[^/]+\/pay\?sourceUrl=[^/]+appointment[^/]+/.test(
+    //       route,
+    //     ),
+    // },
   },
 });

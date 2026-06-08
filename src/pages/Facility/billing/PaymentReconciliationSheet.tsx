@@ -370,10 +370,6 @@ export function PaymentReconciliationSheet({
         location: selectedLocationObject?.id,
         extensions: ext.defaults,
       });
-
-      requestAnimationFrame(() => {
-        form.setFocus("amount");
-      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -750,6 +746,7 @@ export function PaymentReconciliationSheet({
                     type="button"
                     variant="outline"
                     onClick={() => onOpenChange(false)}
+                    data-shortcut-id="cancel-action"
                     aria-label={t("cancel")}
                   >
                     {t("cancel")}
@@ -761,7 +758,7 @@ export function PaymentReconciliationSheet({
                   <Button
                     type="submit"
                     disabled={isPending || isExtensionsLoading}
-                    data-shortcut-id="submit"
+                    data-shortcut-id="submit-action"
                     aria-label={
                       isCreditNote
                         ? t("record_credit_note")

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Timer } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -21,8 +21,6 @@ import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
 import mutate from "@/Utils/request/mutate";
 import { redirectToAppointmentPrintFromSourceUrl } from "./appointmentPrintRedirect";
 
-const AUTO_BALANCE_DELAY_SECONDS = 5;
-
 interface InvoiceNoDuesAutoBalanceProps {
   facilityId: string;
   invoice: InvoiceRead;
@@ -38,9 +36,6 @@ export function InvoiceNoDuesAutoBalance({
 }: InvoiceNoDuesAutoBalanceProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [secondsRemaining, setSecondsRemaining] = useState(
-    AUTO_BALANCE_DELAY_SECONDS,
-  );
   const hasSubmittedRef = useRef(false);
 
   const { mutate: markAsBalanced, isPending } = useMutation({
@@ -89,51 +84,13 @@ export function InvoiceNoDuesAutoBalance({
   }, [isPending, onCancel]);
 
   useEffect(() => {
-    setSecondsRemaining(AUTO_BALANCE_DELAY_SECONDS);
     hasSubmittedRef.current = false;
   }, [invoice.id]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        handleCancel();
-        return;
-      }
-
-      if (event.key === "Enter" && event.shiftKey) {
-        event.preventDefault();
-        handleConfirm();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleCancel, handleConfirm]);
-
-  useEffect(() => {
-    if (isPending) {
-      return;
-    }
-
-    if (secondsRemaining <= 0) {
-      handleConfirm();
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setSecondsRemaining((current) => current - 1);
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [handleConfirm, isPending, secondsRemaining]);
-
-  const timerProgress = (secondsRemaining / AUTO_BALANCE_DELAY_SECONDS) * 100;
 
   return (
     <>
       <div className="space-y-6 py-4">
-        <div className="space-y-4 rounded-lg border border-green-200 bg-green-50 p-4">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
           <div className="flex items-start gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
               <CheckCircle2 className="size-5" />
@@ -142,18 +99,7 @@ export function InvoiceNoDuesAutoBalance({
               <p className="text-base font-semibold text-gray-950">
                 {t("invoice_has_no_dues")}
               </p>
-              <p className="text-sm text-gray-700">
-                {t("invoice_will_be_marked_balanced_in_seconds", {
-                  seconds: secondsRemaining,
-                })}
-              </p>
             </div>
-          </div>
-          <div className="h-1.5 rounded-full bg-green-100">
-            <div
-              className="h-full rounded-full bg-green-600 transition-all duration-1000 ease-linear"
-              style={{ width: `${timerProgress}%` }}
-            />
           </div>
         </div>
 
@@ -188,6 +134,7 @@ export function InvoiceNoDuesAutoBalance({
             variant="outline"
             onClick={handleCancel}
             disabled={isPending}
+            data-shortcut-id="cancel-action"
             aria-label={t("cancel")}
           >
             {t("cancel")}
@@ -198,6 +145,7 @@ export function InvoiceNoDuesAutoBalance({
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
+            data-shortcut-id="submit-action"
             aria-label={t("mark_as_balanced")}
           >
             {isPending ? (
@@ -210,7 +158,7 @@ export function InvoiceNoDuesAutoBalance({
               </>
             ) : (
               <>
-                <Timer className="size-4" />
+                <CheckCircle2 className="size-4" />
                 {t("mark_as_balanced")}
               </>
             )}

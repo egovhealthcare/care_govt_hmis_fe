@@ -30,5 +30,11 @@
   "saved_successfully": "Saved successfully",
   "error": "An error occurred. Please try again.",
   "enabled_encounter_classes": "Enabled Encounter Classes",
-  "patient_has_open_account": "Patient has an open account"
+  "patient_has_open_account": "Patient has an open account",
+  "invoice_has_no_dues": "Invoice has no dues",
+  "invoice_marked_as_balanced": "Invoice marked as balanced",
+  "failed_to_mark_invoice_as_balanced": "Failed to mark invoice as balanced",
+  "mark_as_balanced": "Mark as balanced",
+  "total_payments_received": "Total payments received",
+  "outstanding_balance": "Outstanding balance"
 }

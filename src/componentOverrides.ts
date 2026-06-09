@@ -9,8 +9,14 @@
  */
 import { BookAppointmentDetails } from "@/pages/Appointments/BookAppointment/BookAppointmentDetails";
 import { defineComponentOverrides } from "@/lib/hostOverrides";
+import { PrintInvoice } from "@/components/Billing/PrintInvoice";
 
 defineComponentOverrides({
+  PrintInvoice: {
+    component: PrintInvoice,
+    description:
+      "Shows service request origin and category on charge item titles for Invoice Print.",
+  },
   BookAppointmentDetails: {
     component: BookAppointmentDetails,
     description:

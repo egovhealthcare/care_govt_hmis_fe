@@ -37,16 +37,11 @@ import {
 
 import { Avatar } from "@/components/Common/Avatar";
 
-import { ScheduleResourceIcon } from "@/components/Schedule/ScheduleResourceIcon";
 import { COLOR_PALETTE } from "@/components/ui/multi-filter/utils/Utils";
 import useBreakpoints from "@/hooks/useBreakpoints";
 import { cn } from "@/lib/utils";
 import { FacilityOrganizationRead } from "@/types/facilityOrganization/facilityOrganization";
 import facilityOrganizationApi from "@/types/facilityOrganization/facilityOrganizationApi";
-import {
-  formatScheduleResourceName,
-  SchedulableResourceType,
-} from "@/types/scheduling/schedule";
 import scheduleApi from "@/types/scheduling/scheduleApi";
 import { UserReadMinimal } from "@/types/user/user";
 import query from "@/Utils/request/query";
@@ -276,19 +271,12 @@ export const PractitionerSelector = ({
     >
       {selected[0] ? (
         <div className="flex items-center gap-2">
-          <ScheduleResourceIcon
-            resource={{
-              resource_type: SchedulableResourceType.Practitioner,
-              resource: selected[0],
-            }}
+          <Avatar
+            imageUrl={selected[0].profile_picture_url}
+            name={formatName(selected[0], true)}
             className="size-6 rounded-full"
           />
-          <span>
-            {formatScheduleResourceName({
-              resource_type: SchedulableResourceType.Practitioner,
-              resource: selected[0],
-            })}
-          </span>
+          <span>{formatName(selected[0])}</span>
         </div>
       ) : (
         <span className="text-gray-400">{t("select_practitioner")}</span>

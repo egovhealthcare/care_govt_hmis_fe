@@ -68,8 +68,13 @@ import {
 } from "@/hooks/useExtensions";
 import { ExtensionContexts } from "@/Utils/schema/types";
 import { Separator } from "@/components/ui/separator";
+import {
+  InpatientCareTeamSelector,
+  SelectedCareTeamMember,
+} from "@/pages/Encounters/components/InpatientCareTeamSelector";
+import careTeamApi from "@/types/careTeam/careTeamApi";
 
-interface CreateEncounterPageProps {
+interface CreateInpatientEncounterPageProps {
   facilityId: string;
   patientId: string;
 }
@@ -140,14 +145,17 @@ function getEncounterCreationErrorMessage(error: unknown): string | undefined {
   );
 }
 
-export function CreateEncounterPage({
+export function CreateInpatientEncounterPage({
   facilityId,
   patientId,
-}: CreateEncounterPageProps) {
+}: CreateInpatientEncounterPageProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const inpatientEncounterClass = "imp";
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [careTeamMembers, setCareTeamMembers] = useState<
+    SelectedCareTeamMember[]
+  >([]);
 
   const { getConfigs: getExtensionConfigs } = useExtensionSchemas();
   const allowSelectingKindLocation = getExtensionConfigs(
@@ -335,6 +343,30 @@ export function CreateEncounterPage({
         method: "POST" as const,
         body: encounterBody,
       });
+
+      if (careTeamMembers.length > 0) {
+        requests.push({
+          reference_id: "setCareTeam",
+          url: careTeamApi.setCareTeam.path,
+          method: careTeamApi.setCareTeam.method,
+          body: {
+            members: careTeamMembers.map((item) => ({
+              user_id: item.member.id,
+              role: item.role,
+            })),
+          },
+          replacements: [
+            {
+              source_path: { reference_id: "encounter", path: "id" },
+              value_path: {
+                reference_id: "setCareTeam",
+                path: "encounterId",
+                type: BatchReplacementType.url,
+              },
+            },
+          ],
+        });
+      }
 
       requests.push({
         reference_id: "createAccount",
@@ -680,29 +712,6 @@ export function CreateEncounterPage({
 
                   <FormField
                     control={form.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("tags", { count: 2 })}</FormLabel>
-                        <FormControl>
-                          <TagSelectorPopover
-                            selected={selectedTags}
-                            onChange={(tags) => {
-                              field.onChange(tags.map((tag) => tag.id));
-                            }}
-                            resource={TagResource.ENCOUNTER}
-                            facilityId={facilityId}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="space-y-6">
-                  <FormField
-                    control={form.control}
                     name="organizations"
                     render={({ field }) => (
                       <FormItem>
@@ -721,7 +730,9 @@ export function CreateEncounterPage({
                       </FormItem>
                     )}
                   />
+                </div>
 
+                <div className="space-y-6">
                   <FormField
                     control={form.control}
                     name="location_selection"
@@ -753,6 +764,34 @@ export function CreateEncounterPage({
                               </Badge>
                             )}
                           </Button>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <InpatientCareTeamSelector
+                    facilityId={facilityId}
+                    value={careTeamMembers}
+                    onChange={setCareTeamMembers}
+                    disabled={isPending}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("tags", { count: 2 })}</FormLabel>
+                        <FormControl>
+                          <TagSelectorPopover
+                            selected={selectedTags}
+                            onChange={(tags) => {
+                              field.onChange(tags.map((tag) => tag.id));
+                            }}
+                            resource={TagResource.ENCOUNTER}
+                            facilityId={facilityId}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -816,4 +855,4 @@ export function CreateEncounterPage({
   );
 }
 
-export default CreateEncounterPage;
+export default CreateInpatientEncounterPage;

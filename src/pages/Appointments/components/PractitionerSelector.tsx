@@ -66,6 +66,7 @@ interface Props {
   onSelect: (users: UserReadMinimal[]) => void;
   facilityId: string;
   multiple?: boolean;
+  defaultShowAllOrgs?: boolean;
 }
 
 const MULTI_SELECT_SHOW_LIMIT = 5;
@@ -75,6 +76,7 @@ export const PractitionerSelector = ({
   selected,
   onSelect,
   multiple = true,
+  defaultShowAllOrgs = false,
 }: Props) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -85,7 +87,7 @@ export const PractitionerSelector = ({
   const [currentOrganizationId, setCurrentOrganizationId] = useState<
     string | null
   >(null);
-  const [showAllOrgs, setShowAllOrgs] = useState(false);
+  const [showAllOrgs, setShowAllOrgs] = useState(defaultShowAllOrgs);
   const isMobile = useBreakpoints({ default: true, sm: false });
 
   // Fetch root organizations - default to user's departments only

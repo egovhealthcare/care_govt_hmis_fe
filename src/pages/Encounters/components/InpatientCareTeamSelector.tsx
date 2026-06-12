@@ -8,9 +8,12 @@ import ValueSetSelect from "@/components/Questionnaire/ValueSetSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PractitionerSelector } from "@/pages/Appointments/components/PractitionerSelector";
+import { callApi } from "@/Utils/request/query";
 import { formatName } from "@/Utils/utils";
 import { Code } from "@/types/base/code/code";
+import facilityOrganizationApi from "@/types/facilityOrganization/facilityOrganizationApi";
 import { UserReadMinimal } from "@/types/user/user";
+import userApi from "@/types/user/userApi";
 
 const DEFAULT_CARE_TEAM_ROLE: Code = {
   display: "Primary care physician",
@@ -92,6 +95,40 @@ export function InpatientCareTeamSelector({
           }}
           multiple={false}
           defaultShowAllOrgs
+          usersResolver={async ({ facilityId, organizationIds, signal }) => {
+            if (organizationIds?.length) {
+              const responses = await Promise.all(
+                organizationIds.map((organizationId) =>
+                  callApi(facilityOrganizationApi.listUsers, {
+                    pathParams: { facilityId, organizationId },
+                    queryParams: {
+                      limit: 1000,
+                      is_service_account: false,
+                      user_type: "doctor",
+                    },
+                    signal,
+                  }),
+                ),
+              );
+
+              return {
+                users: responses
+                  .flatMap((response) =>
+                    response.results.map((userRole) => userRole.user),
+                  ),
+              };
+            }
+
+            const response = await callApi(userApi.list, {
+              queryParams: {
+                user_type: "doctor",
+                is_service_account: false,
+                limit: 1000,
+              },
+              signal,
+            });
+            return { users: response.results };
+          }}
         />
         <ValueSetSelect
           system="system-practitioner-role-code"

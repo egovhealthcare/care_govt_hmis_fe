@@ -62,6 +62,11 @@ interface Props {
   facilityId: string;
   multiple?: boolean;
   defaultShowAllOrgs?: boolean;
+  usersResolver?: (options: {
+    facilityId: string;
+    organizationIds?: string[];
+    signal: AbortSignal;
+  }) => Promise<{ users: UserReadMinimal[] }>;
 }
 
 const MULTI_SELECT_SHOW_LIMIT = 5;
@@ -72,6 +77,7 @@ export const PractitionerSelector = ({
   onSelect,
   multiple = true,
   defaultShowAllOrgs = false,
+  usersResolver,
 }: Props) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -115,6 +121,14 @@ export const PractitionerSelector = ({
     useQuery({
       queryKey: ["organizationUsers", facilityId, currentOrganizationId],
       queryFn: async ({ signal }) => {
+        if (usersResolver) {
+          return usersResolver({
+            facilityId,
+            organizationIds: [currentOrganizationId!],
+            signal,
+          });
+        }
+
         // Try availableUsers API with organization filter first
         try {
           const response = await query(
@@ -145,17 +159,34 @@ export const PractitionerSelector = ({
 
   // Fetch all practitioners for search functionality
   const { data: allPractitioners } = useQuery({
-    queryKey: ["allPractitioners", facilityId, searchQuery, showAllOrgs],
-    queryFn: query(scheduleApi.appointments.availableUsers, {
-      pathParams: { facilityId },
-      queryParams: {
-        ...(showAllOrgs
-          ? {}
-          : {
-              organization_ids: organizations.map((org) => org.id).join(","),
-            }),
-      },
-    }),
+    queryKey: [
+      "allPractitioners",
+      facilityId,
+      searchQuery,
+      showAllOrgs,
+      usersResolver ? "custom" : "schedulable",
+    ],
+    queryFn: ({ signal }) =>
+      usersResolver
+        ? usersResolver({
+            facilityId,
+            organizationIds: showAllOrgs
+              ? undefined
+              : organizations.map((org) => org.id),
+            signal,
+          })
+        : query(scheduleApi.appointments.availableUsers, {
+            pathParams: { facilityId },
+            queryParams: {
+              ...(showAllOrgs
+                ? {}
+                : {
+                    organization_ids: organizations
+                      .map((org) => org.id)
+                      .join(","),
+                  }),
+            },
+          })({ signal }),
     select: (data: { users: UserReadMinimal[] }) =>
       data.users.filter((user) =>
         formatName(user).toLowerCase().includes(searchQuery.toLowerCase()),

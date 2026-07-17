@@ -64,10 +64,17 @@ function SheetContent({
         className={cn(sheetVariants({ side }), className)}
         {...props}
         onCloseAutoFocus={(e) => {
-          // Radix leaves `pointer-events: none` stuck on <body> when a nested
-          // overlay (e.g. a Popover/Select inside the sheet) is open as the
-          // sheet closes.
-          // https://github.com/radix-ui/primitives/issues/1241#issuecomment-2589438039
+          // This plugin runs a separate copy of @radix-ui/react-dialog from
+          // the host (core_fe) because Radix is not listed in the federation
+          // `shared` config. Each copy independently saves/restores
+          // `body.style.pointerEvents`. When the sheet opens while a HOST
+          // Radix component (e.g. a DropdownMenu) is still playing its close
+          // animation, the HOST has already set body = "none". The PLUGIN's
+          // DismissableLayer opens with an empty counter, saves "none" as the
+          // "original value to restore", then when the sheet closes it
+          // restores "none" — leaving the page unclickable.
+          // Clearing it here on every close fixes the bad restore.
+          // https://github.com/radix-ui/primitives/issues/1241
           e.preventDefault();
           document.body.style.pointerEvents = "";
         }}

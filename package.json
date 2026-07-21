@@ -68,7 +68,7 @@
     "date-fns": "^4.0.0",
     "dayjs": "^1.11.13",
     "decimal.js": "^10.6.0",
-    "eslint": "^9.24.0",
+    "eslint": "^10.7.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "fhirpath": "^4.8.5",

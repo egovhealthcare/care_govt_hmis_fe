@@ -158,13 +158,24 @@ export function CreateInpatientEncounterPage({
   >([]);
 
   const { getConfigs: getExtensionConfigs } = useExtensionSchemas();
-  const allowSelectingKindLocation = getExtensionConfigs(
+  const encounterExtensionConfigs = getExtensionConfigs(
     ExtensionEntityType.encounter,
-  ).some((config) => config.name === "encounter_kind_location_assignment");
+  );
+  const allowSelectingKindLocation = encounterExtensionConfigs.some(
+    (config) => config.name === "encounter_kind_location_assignment",
+  );
+  const locationRequired = encounterExtensionConfigs.some((config) => {
+    if (config.name !== "encounter_kind_location_assignment") {
+      return false;
+    }
+    const required = (config.write_schema as { required?: string[] }).required;
+    return Array.isArray(required) && required.includes("location");
+  });
 
   const getFormSchema = (
     t: TFunction,
     extValidation: z.ZodType<Record<string, unknown>>,
+    locationRequired: boolean,
   ) => {
     const encounterFormSchema = z
       .object({
@@ -203,7 +214,11 @@ export function CreateInpatientEncounterPage({
           message: t("encounter_future_date_restriction"),
           path: ["start_date"],
         },
-      );
+      )
+      .refine((data) => !locationRequired || Boolean(data.location_selection), {
+        message: t("location_is_required"),
+        path: ["location_selection"],
+      });
     return encounterFormSchema;
   };
 
@@ -213,13 +228,14 @@ export function CreateInpatientEncounterPage({
     () =>
       getCombinedExtensionProps(
         getExtensions(ExtensionEntityType.encounter, "write"),
+        ExtensionContexts.ip_admission_form,
       ),
     [getExtensions],
   );
 
   const formSchema = useMemo(
-    () => getFormSchema(t, ext.validation),
-    [t, ext.validation],
+    () => getFormSchema(t, ext.validation, locationRequired),
+    [t, ext.validation, locationRequired],
   );
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -738,7 +754,7 @@ export function CreateInpatientEncounterPage({
                     name="location_selection"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("location")}</FormLabel>
+                        <FormLabel aria-required={locationRequired}>{t("location")}</FormLabel>
                         <FormControl>
                           <Button
                             type="button"

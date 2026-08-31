@@ -37,5 +37,6 @@
   "failed_to_mark_invoice_as_balanced": "Failed to mark invoice as balanced",
   "mark_as_balanced": "Mark as balanced",
   "total_payments_received": "Total payments received",
-  "outstanding_balance": "Outstanding balance"
+  "outstanding_balance": "Outstanding balance",
+  "location_is_required": "Location is required"
 }

@@ -10,6 +10,10 @@
     "preview": "vite preview",
     "prepare": "husky"
   },
+  "portless": {
+    "name": "care-govt-hmis",
+    "script": "dev"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ohcnetwork/care_appointment_plug.git"

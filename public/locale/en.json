@@ -2,6 +2,8 @@
   "ip_number": "IP Number",
   "invoice_creation_failed": "Invoice creation failed",
   "proceed_to_billing": "Proceed to Billing",
+  "book_without_token": "Book w/o Token",
+  "book_with_token": "Book w. {{category}} Token",
   "more_options": "More options",
   "admit_patient": "Admit Patient",
   "encounter_external_identifier_settings": "Encounter Identifier Settings",

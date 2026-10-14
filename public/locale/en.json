@@ -1,6 +1,9 @@
 {
+  "ip_number": "IP Number",
   "invoice_creation_failed": "Invoice creation failed",
   "proceed_to_billing": "Proceed to Billing",
+  "book_without_token": "Book w/o Token",
+  "book_with_token": "Book w. {{category}} Token",
   "more_options": "More options",
   "admit_patient": "Admit Patient",
   "encounter_external_identifier_settings": "Encounter Identifier Settings",
@@ -36,5 +39,8 @@
   "failed_to_mark_invoice_as_balanced": "Failed to mark invoice as balanced",
   "mark_as_balanced": "Mark as balanced",
   "total_payments_received": "Total payments received",
-  "outstanding_balance": "Outstanding balance"
+  "outstanding_balance": "Outstanding balance",
+  "no_payment_due_for_dispense": "No payment is due for this dispense.",
+  "settle_invoices_with_amount_due_before_completion": "Settle the invoices that still have an amount due before completing this dispense.",
+  "location_is_required": "Location is required"
 }

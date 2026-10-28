@@ -42,5 +42,9 @@
   "outstanding_balance": "Outstanding balance",
   "no_payment_due_for_dispense": "No payment is due for this dispense.",
   "settle_invoices_with_amount_due_before_completion": "Settle the invoices that still have an amount due before completing this dispense.",
-  "location_is_required": "Location is required"
+  "location_is_required": "Location is required",
+  "invoice_amount_due": "Invoice Amount Due",
+  "amount_due_after_account_adjustment": "Amount Due (Advance Adjusted)",
+  "paid_so_far": "Paid so far",
+  "advance_adjusted": "Advance adjusted"
 }

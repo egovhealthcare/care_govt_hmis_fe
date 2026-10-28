@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { t } from "i18next";
 import { useAtom } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -57,8 +57,10 @@ import {
   useEntityExtensions,
   useExtensionSchemas,
 } from "@/hooks/useExtensions";
+import { cn } from "@/lib/utils";
 import { AccountRead } from "@/types/billing/account/Account";
 import { InvoiceRead, InvoiceStatus } from "@/types/billing/invoice/invoice";
+import invoiceApi from "@/types/billing/invoice/invoiceApi";
 import {
   PaymentReconciliationCreate,
   PaymentReconciliationIssuerType,
@@ -72,11 +74,14 @@ import paymentReconciliationApi from "@/types/billing/paymentReconciliation/paym
 import {
   isGreaterThanOrEqual,
   isPositive,
+  isZero,
   round,
+  roundWhole,
   zodDecimal,
 } from "@/Utils/decimal";
 import { KeyboardShortcutBadge } from "@/Utils/keyboardShortcutComponents";
 import mutate from "@/Utils/request/mutate";
+import { callApi } from "@/Utils/request/query";
 import Decimal from "decimal.js";
 import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
 import { redirectToAppointmentPrintFromSourceUrl } from "./appointmentPrintRedirect";
@@ -233,6 +238,66 @@ export function PaymentReconciliationSheet({
     invoice.status !== InvoiceStatus.balanced &&
     new Decimal(invoice.total_gross).minus(invoice.total_payments).isZero();
 
+  const showAmountDueOptions = !!invoice && !isCreditNote;
+
+  // Net amount already paid against the invoice (payments less credit notes).
+  const invoicePaidSoFar = invoice
+    ? new Decimal(invoice.total_payments).minus(invoice.total_credit_notes)
+    : null;
+
+  // Amount due on the invoice after what has already been paid against it.
+  const invoiceAmountDue =
+    invoice && invoicePaidSoFar
+      ? round(
+          Decimal.max(
+            0,
+            new Decimal(invoice.total_gross).minus(invoicePaidSoFar),
+          ),
+        )
+      : null;
+
+  // Amount due after adjusting the account balance (eg. OP advance), since
+  // account totals include advances not targeted at any invoice. Capped at the
+  // invoice's amount due so dues from other invoices are not collected here.
+  const accountAdjustedAmountDue =
+    invoiceAmountDue && invoice?.account
+      ? round(
+          Decimal.max(
+            0,
+            Decimal.min(invoiceAmountDue, invoice.account.total_balance),
+          ),
+        )
+      : null;
+
+  const accountAdjustment =
+    invoiceAmountDue && accountAdjustedAmountDue
+      ? round(new Decimal(invoiceAmountDue).minus(accountAdjustedAmountDue))
+      : null;
+
+  const defaultAmountDue = accountAdjustedAmountDue ?? invoiceAmountDue;
+
+  const isAmountSelected = (value: string) => {
+    try {
+      return new Decimal(amount || "").equals(value);
+    } catch {
+      return false;
+    }
+  };
+
+  // Nothing to collect when the selected amount due is zero (eg. fully covered
+  // by advance), so offer to mark the invoice as balanced instead.
+  const [isNoDuesSelected, setIsNoDuesSelected] = useState(false);
+  const showMarkAsBalanced =
+    showAmountDueOptions &&
+    isNoDuesSelected &&
+    invoice?.status !== InvoiceStatus.balanced;
+
+  const selectAmountDue = (value: string) => {
+    setIsNoDuesSelected(isZero(value));
+    form.setValue("amount", value, { shouldDirty: true, shouldValidate: true });
+    form.setValue("tendered_amount", value, { shouldValidate: true });
+  };
+
   // Watch for payment method changes
   const paymentMethod = form.watch("method");
   const isCashPayment =
@@ -265,11 +330,59 @@ export function PaymentReconciliationSheet({
     }
   }, [selectedLocationObject, form]);
 
+  const { mutate: autoBalanceInvoice, isPending: isAutoBalancing } =
+    useMutation({
+      mutationFn: async (invoiceId: string) => {
+        const currentInvoice = await callApi(invoiceApi.retrieveInvoice, {
+          pathParams: { facilityId, invoiceId },
+        });
+        const netPaid = new Decimal(currentInvoice.total_payments).minus(
+          currentInvoice.total_credit_notes,
+        );
+        if (
+          currentInvoice.status !== InvoiceStatus.issued ||
+          currentInvoice.is_refund ||
+          !netPaid.equals(currentInvoice.total_gross)
+        ) {
+          return currentInvoice;
+        }
+
+        return mutate(invoiceApi.updateInvoice, {
+          pathParams: { facilityId, invoiceId },
+        })({
+          status: InvoiceStatus.balanced,
+          payment_terms: currentInvoice.payment_terms,
+          note: currentInvoice.note,
+          account: currentInvoice.account.id,
+          charge_items: currentInvoice.charge_items.map((item) => item.id),
+        });
+      },
+      onSuccess: async (updatedInvoice) => {
+        // A refetch started after payment may still contain the issued status.
+        await queryClient.cancelQueries({
+          queryKey: ["invoice"],
+          predicate: (query) => query.queryKey.includes(updatedInvoice.id),
+        });
+        queryClient.setQueriesData<InvoiceRead>(
+          { queryKey: ["invoice"] },
+          (cached) =>
+            cached?.id === updatedInvoice.id ? updatedInvoice : cached,
+        );
+        if (updatedInvoice.status === InvoiceStatus.balanced) {
+          toast.success(t("invoice_marked_as_balanced"));
+          queryClient.invalidateQueries({ queryKey: ["medication_dispense"] });
+          queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        }
+      },
+      onError: () => toast.error(t("failed_to_mark_invoice_as_balanced")),
+    });
+
   const { mutate: submitPayment, isPending } = useMutation({
-    mutationFn: mutate(paymentReconciliationApi.createPaymentReconciliation, {
-      pathParams: { facilityId },
-    }),
-    onSuccess: () => {
+    mutationFn: async (data: PaymentReconciliationCreate) =>
+      mutate(paymentReconciliationApi.createPaymentReconciliation, {
+        pathParams: { facilityId },
+      })(data),
+    onSuccess: (data) => {
       toast.success(
         isCreditNote
           ? t("refund_recorded_successfully")
@@ -278,7 +391,7 @@ export function PaymentReconciliationSheet({
 
       // Invalidate relevant queries
       if (invoice) {
-        queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
+        queryClient.invalidateQueries({ queryKey: ["invoice"] });
         queryClient.invalidateQueries({
           queryKey: ["payments", invoice.id],
         });
@@ -294,14 +407,33 @@ export function PaymentReconciliationSheet({
         });
       }
 
-      if (redirectToAppointmentPrintFromSourceUrl()) {
+      const finish = () => {
+        if (redirectToAppointmentPrintFromSourceUrl()) {
+          return;
+        }
+
+        // Close sheet and call success callback
+        onOpenChange(false);
+        form.reset();
+        onSuccess?.();
+      };
+
+      if (
+        invoice &&
+        !isCreditNote &&
+        !data.is_credit_note &&
+        data.target_invoice?.id === invoice.id &&
+        data.status === PaymentReconciliationStatus.active &&
+        data.outcome === PaymentReconciliationOutcome.complete
+      ) {
+        // Balancing is separate from recording payment: failure must never
+        // cause the payment to be submitted again. Wait for it to settle so
+        // that the sheet isn't closed / navigated away mid-request.
+        autoBalanceInvoice(invoice.id, { onSettled: finish });
         return;
       }
 
-      // Close sheet and call success callback
-      onOpenChange(false);
-      form.reset();
-      onSuccess?.();
+      finish();
     },
     onError: () => {
       toast.error(t("error_recording_payment"));
@@ -336,9 +468,15 @@ export function PaymentReconciliationSheet({
 
   useEffect(() => {
     if (open && !showInvoiceNoDuesAutoBalance) {
-      const initialAmount = invoice?.total_gross
-        ? round(new Decimal(invoice.total_gross).abs())
-        : "";
+      const initialAmount = !invoice
+        ? ""
+        : isCreditNote
+          ? round(new Decimal(invoice.total_gross).abs())
+          : (defaultAmountDue ?? "");
+
+      setIsNoDuesSelected(
+        !!invoice && !isCreditNote && !!initialAmount && isZero(initialAmount),
+      );
 
       // Determine the default payment method
       const defaultMethod = careConfig.defaultPaymentMethod
@@ -432,7 +570,52 @@ export function PaymentReconciliationSheet({
                   )}
 
                   <div className="bg-white p-3 text-center">
-                    {invoice ? (
+                    {showAmountDueOptions && invoiceAmountDue ? (
+                      <div
+                        className={cn(
+                          "grid gap-2",
+                          accountAdjustedAmountDue && "grid-cols-2",
+                        )}
+                      >
+                        <AmountDueOption
+                          label={t("invoice_amount_due")}
+                          amount={invoiceAmountDue}
+                          selected={isAmountSelected(invoiceAmountDue)}
+                          onSelect={() => selectAmountDue(invoiceAmountDue)}
+                          hint={
+                            invoicePaidSoFar && !invoicePaidSoFar.isZero() ? (
+                              <>
+                                {t("paid_so_far")}:{" "}
+                                <MonetaryDisplay
+                                  amount={round(invoicePaidSoFar)}
+                                />
+                              </>
+                            ) : undefined
+                          }
+                        />
+                        {accountAdjustedAmountDue && (
+                          <AmountDueOption
+                            label={t("amount_due_after_account_adjustment")}
+                            amount={accountAdjustedAmountDue}
+                            selected={isAmountSelected(
+                              accountAdjustedAmountDue,
+                            )}
+                            onSelect={() =>
+                              selectAmountDue(accountAdjustedAmountDue)
+                            }
+                            hint={
+                              accountAdjustment &&
+                              isPositive(accountAdjustment) ? (
+                                <>
+                                  {t("advance_adjusted")}:{" "}
+                                  <MonetaryDisplay amount={accountAdjustment} />
+                                </>
+                              ) : undefined
+                            }
+                          />
+                        )}
+                      </div>
+                    ) : invoice ? (
                       <>
                         <p className="mb-1 text-sm text-gray-600">
                           {isCreditNote ? t("refund_given") : t("amount_due")}
@@ -451,7 +634,11 @@ export function PaymentReconciliationSheet({
                           {t("balance_due")}
                         </p>
                         <p className="text-3xl font-bold text-gray-900">
-                          <MonetaryDisplay amount={account?.total_balance} />
+                          {account && (
+                            <MonetaryDisplay
+                              amount={roundWhole(account.total_balance)}
+                            />
+                          )}
                         </p>
                       </>
                     )}
@@ -467,328 +654,389 @@ export function PaymentReconciliationSheet({
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-950">
-                        {t("payment_method")}
-                      </FormLabel>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        className="grid grid-cols-3 gap-3"
-                      >
-                        {PAYMENT_METHODS.map((method) => {
-                          const Icon = method.icon;
-                          return (
-                            <Label
-                              key={method.value}
-                              className="has-checked:border-primary-600 relative flex cursor-pointer flex-col items-center rounded-md border border-gray-400 p-2.5 shadow-sm outline-none has-checked:bg-green-50"
-                            >
-                              <RadioGroupItem
-                                value={method.value}
-                                className="absolute top-2 left-2"
-                                aria-label={`payment-method-${method.value}`}
-                              />
-                              <div className="grid grow justify-items-center gap-1">
-                                <Icon className="size-5 text-gray-600" />
-                                <span className="text-center text-sm font-medium text-gray-950">
-                                  {t(method.label)}
-                                </span>
-                              </div>
-                            </Label>
-                          );
-                        })}
-                      </RadioGroup>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="reconciliation_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-950">
-                        {t("payment_type")}
-                      </FormLabel>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        className="flex flex-wrap"
-                      >
-                        {PAYMENT_TYPES.map((type) => (
-                          <Label
-                            key={type.value}
-                            className="has-checked:border-primary-600 has-checked:bg-primary-100/50 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-400 p-2.5 shadow-sm outline-none"
-                          >
-                            <RadioGroupItem
-                              value={type.value}
-                              aria-label={`payment-type-${type.value}`}
-                            />
-                            <span className="text-sm font-medium text-gray-950">
-                              {t(type.label)}
-                            </span>
-                          </Label>
-                        ))}
-                      </RadioGroup>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {!isCreditNote && (
-                  <FormField
-                    control={form.control}
-                    name="issuer_type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-gray-950">
-                          {t("issuer_type")}
-                        </FormLabel>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          className="flex flex-wrap"
-                        >
-                          {Object.values(PaymentReconciliationIssuerType).map(
-                            (type) => (
-                              <Label
-                                key={type}
-                                className="has-checked:border-primary-600 has-checked:bg-primary-100/50 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-400 p-2.5 shadow-sm outline-none"
-                              >
-                                <RadioGroupItem
-                                  value={type}
-                                  aria-label={`issuer-type-${type}`}
-                                />
-                                <span className="text-sm font-medium text-gray-950">
-                                  {t(type)}
-                                </span>
-                              </Label>
-                            ),
-                          )}
-                        </RadioGroup>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                {showMarkAsBalanced && invoice ? (
+                  <InvoiceNoDuesAutoBalance
+                    facilityId={facilityId}
+                    invoice={invoice}
+                    advanceAdjusted={accountAdjustment ?? undefined}
+                    onCancel={() => onOpenChange(false)}
+                    onSuccess={() => {
+                      onOpenChange(false);
+                      onSuccess?.();
+                    }}
                   />
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-950">
-                        {t("location")}
-                      </FormLabel>
-                      <FormControl>
-                        <LocationPicker
-                          facilityId={facilityId}
-                          value={selectedLocationObject}
-                          onValueChange={(location) => {
-                            setSelectedLocationObject(location);
-                            field.onChange(location?.id);
-                          }}
-                          placeholder={t("select_location")}
-                          className="w-full border-gray-300"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem className="gap-1.5">
-                      <FormLabel className="text-gray-950">
-                        {isCreditNote ? t("refund_amount") : t("amount_paid")}
-                      </FormLabel>
-                      <FormControl>
-                        <MonetaryAmountInput
-                          {...field}
-                          value={field.value || ""}
-                          onChange={(e) => {
-                            field.onChange(e.target.value);
-                            if (isCreditNote) {
-                              form.setValue("tendered_amount", e.target.value);
-                            }
-                          }}
-                        />
-                      </FormControl>
-                      <FormDescription className="-mt-1.5 text-gray-700 italic">
-                        {t("amount_to_be_recorded")}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {isCashPayment && !isCreditNote && (
-                  <div>
+                ) : (
+                  <>
                     <FormField
                       control={form.control}
-                      name="tendered_amount"
+                      name="method"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-gray-950">
-                            {t("amount_received")}
+                            {t("payment_method")}
+                          </FormLabel>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="grid grid-cols-3 gap-3"
+                          >
+                            {PAYMENT_METHODS.map((method) => {
+                              const Icon = method.icon;
+                              return (
+                                <Label
+                                  key={method.value}
+                                  className="has-checked:border-primary-600 relative flex cursor-pointer flex-col items-center rounded-md border border-gray-400 p-2.5 shadow-sm outline-none has-checked:bg-green-50"
+                                >
+                                  <RadioGroupItem
+                                    value={method.value}
+                                    className="absolute top-2 left-2"
+                                    aria-label={`payment-method-${method.value}`}
+                                  />
+                                  <div className="grid grow justify-items-center gap-1">
+                                    <Icon className="size-5 text-gray-600" />
+                                    <span className="text-center text-sm font-medium text-gray-950">
+                                      {t(method.label)}
+                                    </span>
+                                  </div>
+                                </Label>
+                              );
+                            })}
+                          </RadioGroup>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="reconciliation_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-950">
+                            {t("payment_type")}
+                          </FormLabel>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="flex flex-wrap"
+                          >
+                            {PAYMENT_TYPES.map((type) => (
+                              <Label
+                                key={type.value}
+                                className="has-checked:border-primary-600 has-checked:bg-primary-100/50 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-400 p-2.5 shadow-sm outline-none"
+                              >
+                                <RadioGroupItem
+                                  value={type.value}
+                                  aria-label={`payment-type-${type.value}`}
+                                />
+                                <span className="text-sm font-medium text-gray-950">
+                                  {t(type.label)}
+                                </span>
+                              </Label>
+                            ))}
+                          </RadioGroup>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {!isCreditNote && (
+                      <FormField
+                        control={form.control}
+                        name="issuer_type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-gray-950">
+                              {t("issuer_type")}
+                            </FormLabel>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="flex flex-wrap"
+                            >
+                              {Object.values(
+                                PaymentReconciliationIssuerType,
+                              ).map((type) => (
+                                <Label
+                                  key={type}
+                                  className="has-checked:border-primary-600 has-checked:bg-primary-100/50 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-400 p-2.5 shadow-sm outline-none"
+                                >
+                                  <RadioGroupItem
+                                    value={type}
+                                    aria-label={`issuer-type-${type}`}
+                                  />
+                                  <span className="text-sm font-medium text-gray-950">
+                                    {t(type)}
+                                  </span>
+                                </Label>
+                              ))}
+                            </RadioGroup>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    <FormField
+                      control={form.control}
+                      name="location"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-950">
+                            {t("location")}
+                          </FormLabel>
+                          <FormControl>
+                            <LocationPicker
+                              facilityId={facilityId}
+                              value={selectedLocationObject}
+                              onValueChange={(location) => {
+                                setSelectedLocationObject(location);
+                                field.onChange(location?.id);
+                              }}
+                              placeholder={t("select_location")}
+                              className="w-full border-gray-300"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="amount"
+                      render={({ field }) => (
+                        <FormItem className="gap-1.5">
+                          <FormLabel className="text-gray-950">
+                            {isCreditNote
+                              ? t("refund_amount")
+                              : t("amount_paid")}
                           </FormLabel>
                           <FormControl>
                             <MonetaryAmountInput
                               {...field}
                               value={field.value || ""}
+                              onChange={(e) => {
+                                field.onChange(e.target.value);
+                                if (isCreditNote) {
+                                  form.setValue(
+                                    "tendered_amount",
+                                    e.target.value,
+                                  );
+                                }
+                              }}
                             />
                           </FormControl>
                           <FormDescription className="-mt-1.5 text-gray-700 italic">
-                            {t("amount_given_by_customer")}
+                            {t("amount_to_be_recorded")}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    {isPositive(form.watch("returned_amount") || "0") && (
-                      <div className="mt-2 rounded-md border border-yellow-500 bg-yellow-50 p-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-yellow-950">
-                            {t("change_to_return")}:
-                            <MonetaryDisplay
-                              className="ml-1 font-semibold text-yellow-950"
-                              amount={form.watch("returned_amount") || "0"}
-                            />
-                          </span>
-                        </div>
+                    {isCashPayment && !isCreditNote && (
+                      <div>
+                        <FormField
+                          control={form.control}
+                          name="tendered_amount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-gray-950">
+                                {t("amount_received")}
+                              </FormLabel>
+                              <FormControl>
+                                <MonetaryAmountInput
+                                  {...field}
+                                  value={field.value || ""}
+                                />
+                              </FormControl>
+                              <FormDescription className="-mt-1.5 text-gray-700 italic">
+                                {t("amount_given_by_customer")}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {isPositive(form.watch("returned_amount") || "0") && (
+                          <div className="mt-2 rounded-md border border-yellow-500 bg-yellow-50 p-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-yellow-950">
+                                {t("change_to_return")}:
+                                <MonetaryDisplay
+                                  className="ml-1 font-semibold text-yellow-950"
+                                  amount={form.watch("returned_amount") || "0"}
+                                />
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {!isCashPayment && (
-                  <FormField
-                    control={form.control}
-                    name="reference_number"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-gray-950">
-                          {t("reference_number")}
-                          <span className="text-gray-600 italic">
-                            ({t("optional")})
-                          </span>
-                        </FormLabel>
-                        <FormControl>
-                          <Input {...field} value={field.value || ""} />
-                        </FormControl>
-                        <FormDescription className="-mt-1.5 text-gray-700 italic">
-                          {t("reference_number_description")}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                    {!isCashPayment && (
+                      <FormField
+                        control={form.control}
+                        name="reference_number"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-gray-950">
+                              {t("reference_number")}
+                              <span className="text-gray-600 italic">
+                                ({t("optional")})
+                              </span>
+                            </FormLabel>
+                            <FormControl>
+                              <Input {...field} value={field.value || ""} />
+                            </FormControl>
+                            <FormDescription className="-mt-1.5 text-gray-700 italic">
+                              {t("reference_number_description")}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
+
+                    <FormField
+                      control={form.control}
+                      name="payment_datetime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-950">
+                            {t("payment_date")}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="datetime-local"
+                              {...field}
+                              value={field.value ? field.value : ""}
+                              max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="note"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-950">
+                            {t("notes")}
+                            <span className="text-gray-600 italic">
+                              ({t("optional")})
+                            </span>
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              value={field.value || ""}
+                              placeholder={t("additional_payment_notes")}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {extensions.fields}
+                  </>
                 )}
-
-                <FormField
-                  control={form.control}
-                  name="payment_datetime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-950">
-                        {t("payment_date")}
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                          value={field.value ? field.value : ""}
-                          max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="note"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-gray-950">
-                        {t("notes")}
-                        <span className="text-gray-600 italic">
-                          ({t("optional")})
-                        </span>
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          value={field.value || ""}
-                          placeholder={t("additional_payment_notes")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {extensions.fields}
               </div>
 
-              <SheetFooter className="sticky bottom-0 -mx-6 border-t border-gray-200 bg-white p-4">
-                <div className="flex justify-between gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onOpenChange(false)}
-                    data-shortcut-id="cancel-action"
-                    aria-label={t("cancel")}
-                  >
-                    {t("cancel")}
-                    <KeyboardShortcutBadge
-                      shortcut={formatKeyboardShortcut("esc")}
-                    />
-                  </Button>
+              {!showMarkAsBalanced && (
+                <SheetFooter className="sticky bottom-0 -mx-6 border-t border-gray-200 bg-white p-4">
+                  <div className="flex justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                      data-shortcut-id="cancel-action"
+                      aria-label={t("cancel")}
+                    >
+                      {t("cancel")}
+                      <KeyboardShortcutBadge
+                        shortcut={formatKeyboardShortcut("esc")}
+                      />
+                    </Button>
 
-                  <Button
-                    type="submit"
-                    disabled={isPending || isExtensionsLoading}
-                    data-shortcut-id="submit-action"
-                    aria-label={
-                      isCreditNote
-                        ? t("record_credit_note")
-                        : t("record_payment")
-                    }
-                  >
-                    {isPending ? (
-                      <>
-                        <CareIcon
-                          icon="l-spinner"
-                          className="mr-2 size-4 animate-spin"
-                        />
-                        {t("processing_with_dots")}
-                      </>
-                    ) : isCreditNote ? (
-                      t("record_credit_note")
-                    ) : (
-                      t("record_payment")
-                    )}
-                    <KeyboardShortcutBadge
-                      shortcut={formatKeyboardShortcut("shift+enter")}
-                    />
-                  </Button>
-                </div>
-              </SheetFooter>
+                    <Button
+                      type="submit"
+                      disabled={
+                        isPending || isAutoBalancing || isExtensionsLoading
+                      }
+                      data-shortcut-id="submit-action"
+                      aria-label={
+                        isCreditNote
+                          ? t("record_credit_note")
+                          : t("record_payment")
+                      }
+                    >
+                      {isPending || isAutoBalancing ? (
+                        <>
+                          <CareIcon
+                            icon="l-spinner"
+                            className="mr-2 size-4 animate-spin"
+                          />
+                          {t("processing_with_dots")}
+                        </>
+                      ) : isCreditNote ? (
+                        t("record_credit_note")
+                      ) : (
+                        t("record_payment")
+                      )}
+                      <KeyboardShortcutBadge
+                        shortcut={formatKeyboardShortcut("shift+enter")}
+                      />
+                    </Button>
+                  </div>
+                </SheetFooter>
+              )}
             </form>
           </Form>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+interface AmountDueOptionProps {
+  label: string;
+  amount: string;
+  hint?: React.ReactNode;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function AmountDueOption({
+  label,
+  amount,
+  hint,
+  selected,
+  onSelect,
+}: AmountDueOptionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        "flex cursor-pointer flex-col items-center justify-center rounded-md border p-2 transition-colors",
+        selected
+          ? "border-primary-600 bg-primary-100/50"
+          : "border-gray-200 hover:border-gray-400",
+      )}
+    >
+      <span className="mb-1 text-sm text-gray-600">{label}</span>
+      <MonetaryDisplay
+        amount={amount}
+        className="text-2xl font-bold text-gray-900"
+      />
+      {hint && <span className="mt-1 text-xs text-gray-500">{hint}</span>}
+    </button>
   );
 }
 

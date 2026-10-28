@@ -60,7 +60,6 @@ import {
 import { cn } from "@/lib/utils";
 import { AccountRead } from "@/types/billing/account/Account";
 import { InvoiceRead, InvoiceStatus } from "@/types/billing/invoice/invoice";
-import invoiceApi from "@/types/billing/invoice/invoiceApi";
 import {
   PaymentReconciliationCreate,
   PaymentReconciliationIssuerType,
@@ -81,7 +80,6 @@ import {
 } from "@/Utils/decimal";
 import { KeyboardShortcutBadge } from "@/Utils/keyboardShortcutComponents";
 import mutate from "@/Utils/request/mutate";
-import { callApi } from "@/Utils/request/query";
 import Decimal from "decimal.js";
 import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
 import { redirectToAppointmentPrintFromSourceUrl } from "./appointmentPrintRedirect";
@@ -330,59 +328,11 @@ export function PaymentReconciliationSheet({
     }
   }, [selectedLocationObject, form]);
 
-  const { mutate: autoBalanceInvoice, isPending: isAutoBalancing } =
-    useMutation({
-      mutationFn: async (invoiceId: string) => {
-        const currentInvoice = await callApi(invoiceApi.retrieveInvoice, {
-          pathParams: { facilityId, invoiceId },
-        });
-        const netPaid = new Decimal(currentInvoice.total_payments).minus(
-          currentInvoice.total_credit_notes,
-        );
-        if (
-          currentInvoice.status !== InvoiceStatus.issued ||
-          currentInvoice.is_refund ||
-          !netPaid.equals(currentInvoice.total_gross)
-        ) {
-          return currentInvoice;
-        }
-
-        return mutate(invoiceApi.updateInvoice, {
-          pathParams: { facilityId, invoiceId },
-        })({
-          status: InvoiceStatus.balanced,
-          payment_terms: currentInvoice.payment_terms,
-          note: currentInvoice.note,
-          account: currentInvoice.account.id,
-          charge_items: currentInvoice.charge_items.map((item) => item.id),
-        });
-      },
-      onSuccess: async (updatedInvoice) => {
-        // A refetch started after payment may still contain the issued status.
-        await queryClient.cancelQueries({
-          queryKey: ["invoice"],
-          predicate: (query) => query.queryKey.includes(updatedInvoice.id),
-        });
-        queryClient.setQueriesData<InvoiceRead>(
-          { queryKey: ["invoice"] },
-          (cached) =>
-            cached?.id === updatedInvoice.id ? updatedInvoice : cached,
-        );
-        if (updatedInvoice.status === InvoiceStatus.balanced) {
-          toast.success(t("invoice_marked_as_balanced"));
-          queryClient.invalidateQueries({ queryKey: ["medication_dispense"] });
-          queryClient.invalidateQueries({ queryKey: ["accounts"] });
-        }
-      },
-      onError: () => toast.error(t("failed_to_mark_invoice_as_balanced")),
-    });
-
   const { mutate: submitPayment, isPending } = useMutation({
-    mutationFn: async (data: PaymentReconciliationCreate) =>
-      mutate(paymentReconciliationApi.createPaymentReconciliation, {
-        pathParams: { facilityId },
-      })(data),
-    onSuccess: (data) => {
+    mutationFn: mutate(paymentReconciliationApi.createPaymentReconciliation, {
+      pathParams: { facilityId },
+    }),
+    onSuccess: () => {
       toast.success(
         isCreditNote
           ? t("refund_recorded_successfully")
@@ -407,33 +357,14 @@ export function PaymentReconciliationSheet({
         });
       }
 
-      const finish = () => {
-        if (redirectToAppointmentPrintFromSourceUrl()) {
-          return;
-        }
-
-        // Close sheet and call success callback
-        onOpenChange(false);
-        form.reset();
-        onSuccess?.();
-      };
-
-      if (
-        invoice &&
-        !isCreditNote &&
-        !data.is_credit_note &&
-        data.target_invoice?.id === invoice.id &&
-        data.status === PaymentReconciliationStatus.active &&
-        data.outcome === PaymentReconciliationOutcome.complete
-      ) {
-        // Balancing is separate from recording payment: failure must never
-        // cause the payment to be submitted again. Wait for it to settle so
-        // that the sheet isn't closed / navigated away mid-request.
-        autoBalanceInvoice(invoice.id, { onSettled: finish });
+      if (redirectToAppointmentPrintFromSourceUrl()) {
         return;
       }
 
-      finish();
+      // Close sheet and call success callback
+      onOpenChange(false);
+      form.reset();
+      onSuccess?.();
     },
     onError: () => {
       toast.error(t("error_recording_payment"));
@@ -965,9 +896,7 @@ export function PaymentReconciliationSheet({
 
                     <Button
                       type="submit"
-                      disabled={
-                        isPending || isAutoBalancing || isExtensionsLoading
-                      }
+                      disabled={isPending || isExtensionsLoading}
                       data-shortcut-id="submit-action"
                       aria-label={
                         isCreditNote
@@ -975,7 +904,7 @@ export function PaymentReconciliationSheet({
                           : t("record_payment")
                       }
                     >
-                      {isPending || isAutoBalancing ? (
+                      {isPending ? (
                         <>
                           <CareIcon
                             icon="l-spinner"

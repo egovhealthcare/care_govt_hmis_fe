@@ -44,7 +44,7 @@
   "settle_invoices_with_amount_due_before_completion": "Settle the invoices that still have an amount due before completing this dispense.",
   "location_is_required": "Location is required",
   "invoice_amount_due": "Invoice Amount Due",
-  "amount_due_after_account_adjustment": "Amount Due (Advance Adjusted)",
+  "amount_due_after_account_adjustment": "Amt. Due (Adv. Adjusted)",
   "paid_so_far": "Paid so far",
   "advance_adjusted": "Advance adjusted"
 }

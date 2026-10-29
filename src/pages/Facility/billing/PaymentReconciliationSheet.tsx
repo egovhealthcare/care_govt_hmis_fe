@@ -277,7 +277,7 @@ export function PaymentReconciliationSheet({
   const hasAccountAdjustment =
     !!accountAdjustment && isPositive(accountAdjustment);
 
-  const defaultAmountDue = accountAdjustedAmountDue ?? invoiceAmountDue;
+  const defaultAmountDue = invoiceAmountDue;
 
   const isAmountSelected = (value: string) => {
     try {

@@ -258,12 +258,9 @@ export function PaymentReconciliationSheet({
   // account totals include advances not targeted at any invoice. Capped at the
   // invoice's amount due so dues from other invoices are not collected here.
   const accountAdjustedAmountDue =
-    invoiceAmountDue && invoice?.account
+    invoiceAmountDue && invoice
       ? round(
-          Decimal.max(
-            0,
-            Decimal.min(invoiceAmountDue, invoice.account.total_balance),
-          ),
+          Decimal.clamp(invoice.account.total_balance, 0, invoiceAmountDue),
         )
       : null;
 

@@ -272,6 +272,11 @@ export function PaymentReconciliationSheet({
       ? round(new Decimal(invoiceAmountDue).minus(accountAdjustedAmountDue))
       : null;
 
+  // Both amounts due are the same when there's no advance to adjust, so only
+  // offer the choice when the advance actually reduces the amount due.
+  const hasAccountAdjustment =
+    !!accountAdjustment && isPositive(accountAdjustment);
+
   const defaultAmountDue = accountAdjustedAmountDue ?? invoiceAmountDue;
 
   const isAmountSelected = (value: string) => {
@@ -501,13 +506,11 @@ export function PaymentReconciliationSheet({
                   )}
 
                   <div className="bg-white p-3 text-center">
-                    {showAmountDueOptions && invoiceAmountDue ? (
-                      <div
-                        className={cn(
-                          "grid gap-2",
-                          accountAdjustedAmountDue && "grid-cols-2",
-                        )}
-                      >
+                    {showAmountDueOptions &&
+                    hasAccountAdjustment &&
+                    invoiceAmountDue &&
+                    accountAdjustedAmountDue ? (
+                      <div className="grid grid-cols-2 gap-2">
                         <AmountDueOption
                           label={t("invoice_amount_due")}
                           amount={invoiceAmountDue}
@@ -524,27 +527,20 @@ export function PaymentReconciliationSheet({
                             ) : undefined
                           }
                         />
-                        {accountAdjustedAmountDue && (
-                          <AmountDueOption
-                            label={t("amount_due_after_account_adjustment")}
-                            amount={accountAdjustedAmountDue}
-                            selected={isAmountSelected(
-                              accountAdjustedAmountDue,
-                            )}
-                            onSelect={() =>
-                              selectAmountDue(accountAdjustedAmountDue)
-                            }
-                            hint={
-                              accountAdjustment &&
-                              isPositive(accountAdjustment) ? (
-                                <>
-                                  {t("advance_adjusted")}:{" "}
-                                  <MonetaryDisplay amount={accountAdjustment} />
-                                </>
-                              ) : undefined
-                            }
-                          />
-                        )}
+                        <AmountDueOption
+                          label={t("amount_due_after_account_adjustment")}
+                          amount={accountAdjustedAmountDue}
+                          selected={isAmountSelected(accountAdjustedAmountDue)}
+                          onSelect={() =>
+                            selectAmountDue(accountAdjustedAmountDue)
+                          }
+                          hint={
+                            <>
+                              {t("advance_adjusted")}:{" "}
+                              <MonetaryDisplay amount={accountAdjustment} />
+                            </>
+                          }
+                        />
                       </div>
                     ) : invoice ? (
                       <>

@@ -16,6 +16,7 @@ import {
   InvoiceStatus,
 } from "@/types/billing/invoice/invoice";
 import invoiceApi from "@/types/billing/invoice/invoiceApi";
+import { isPositive } from "@/Utils/decimal";
 import { KeyboardShortcutBadge } from "@/Utils/keyboardShortcutComponents";
 import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
 import mutate from "@/Utils/request/mutate";
@@ -24,6 +25,8 @@ import { redirectToAppointmentPrintFromSourceUrl } from "./appointmentPrintRedir
 interface InvoiceNoDuesAutoBalanceProps {
   facilityId: string;
   invoice: InvoiceRead;
+  /** Amount of the invoice covered by the account's advance, if any. */
+  advanceAdjusted?: string;
   onCancel: () => void;
   onSuccess: () => void;
 }
@@ -31,6 +34,7 @@ interface InvoiceNoDuesAutoBalanceProps {
 export function InvoiceNoDuesAutoBalance({
   facilityId,
   invoice,
+  advanceAdjusted,
   onCancel,
   onSuccess,
 }: InvoiceNoDuesAutoBalanceProps) {
@@ -118,6 +122,14 @@ export function InvoiceNoDuesAutoBalance({
               <MonetaryDisplay amount={invoice.total_payments} />
             </span>
           </div>
+          {advanceAdjusted && isPositive(advanceAdjusted) && (
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-gray-600">{t("advance_adjusted")}</span>
+              <span className="font-medium text-green-700">
+                <MonetaryDisplay amount={advanceAdjusted} />
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3 border-t border-gray-200 pt-3 text-sm">
             <span className="text-gray-600">{t("outstanding_balance")}</span>
             <span className="font-semibold text-gray-950">

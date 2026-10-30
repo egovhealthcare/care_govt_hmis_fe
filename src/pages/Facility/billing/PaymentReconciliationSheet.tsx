@@ -60,6 +60,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AccountRead } from "@/types/billing/account/Account";
 import { InvoiceRead, InvoiceStatus } from "@/types/billing/invoice/invoice";
+import invoiceApi from "@/types/billing/invoice/invoiceApi";
 import {
   PaymentReconciliationCreate,
   PaymentReconciliationIssuerType,
@@ -80,6 +81,7 @@ import {
 } from "@/Utils/decimal";
 import { KeyboardShortcutBadge } from "@/Utils/keyboardShortcutComponents";
 import mutate from "@/Utils/request/mutate";
+import { callApi } from "@/Utils/request/query";
 import Decimal from "decimal.js";
 import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
 import { redirectToAppointmentPrintFromSourceUrl } from "./appointmentPrintRedirect";
@@ -259,7 +261,7 @@ export function PaymentReconciliationSheet({
   // invoice's amount due so dues from other invoices are not collected here.
   const accountAdjustedAmountDue =
     invoiceAmountDue && invoice
-      ? round(
+      ? roundWhole(
           Decimal.clamp(invoice.account.total_balance, 0, invoiceAmountDue),
         )
       : null;
@@ -330,6 +332,44 @@ export function PaymentReconciliationSheet({
     }
   }, [selectedLocationObject, form]);
 
+  // The backend only auto-balances an invoice when payments targeted at it
+  // cover its total. When the rest is covered by advance (ie. the account has
+  // no pending balance after this payment), balance the invoice here.
+  const { mutate: balanceIfAccountSettled, isPending: isBalancing } =
+    useMutation({
+      mutationFn: async (invoiceId: string) => {
+        // Retrieved invoice includes the account's totals after this payment.
+        const currentInvoice = await callApi(invoiceApi.retrieveInvoice, {
+          pathParams: { facilityId, invoiceId },
+        });
+        if (
+          currentInvoice.status !== InvoiceStatus.issued ||
+          currentInvoice.is_refund ||
+          isPositive(roundWhole(currentInvoice.account.total_balance))
+        ) {
+          return null;
+        }
+
+        return mutate(invoiceApi.updateInvoice, {
+          pathParams: { facilityId, invoiceId },
+        })({
+          status: InvoiceStatus.balanced,
+          payment_terms: currentInvoice.payment_terms,
+          note: currentInvoice.note,
+          account: currentInvoice.account.id,
+          charge_items: currentInvoice.charge_items.map((item) => item.id),
+          issue_date: currentInvoice.issue_date,
+        });
+      },
+      onSuccess: (updatedInvoice) => {
+        if (!updatedInvoice) return;
+        toast.success(t("invoice_marked_as_balanced"));
+        queryClient.invalidateQueries({ queryKey: ["invoice"] });
+        queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      },
+      onError: () => toast.error(t("failed_to_mark_invoice_as_balanced")),
+    });
+
   const { mutate: submitPayment, isPending } = useMutation({
     mutationFn: mutate(paymentReconciliationApi.createPaymentReconciliation, {
       pathParams: { facilityId },
@@ -359,14 +399,25 @@ export function PaymentReconciliationSheet({
         });
       }
 
-      if (redirectToAppointmentPrintFromSourceUrl()) {
+      const finish = () => {
+        if (redirectToAppointmentPrintFromSourceUrl()) {
+          return;
+        }
+
+        // Close sheet and call success callback
+        onOpenChange(false);
+        form.reset();
+        onSuccess?.();
+      };
+
+      if (invoice && !isCreditNote) {
+        // Wait for it to settle so that the sheet isn't closed / navigated
+        // away mid-request. A failure here must not affect the recorded payment.
+        balanceIfAccountSettled(invoice.id, { onSettled: finish });
         return;
       }
 
-      // Close sheet and call success callback
-      onOpenChange(false);
-      form.reset();
-      onSuccess?.();
+      finish();
     },
     onError: () => {
       toast.error(t("error_recording_payment"));
@@ -889,7 +940,7 @@ export function PaymentReconciliationSheet({
 
                     <Button
                       type="submit"
-                      disabled={isPending || isExtensionsLoading}
+                      disabled={isPending || isBalancing || isExtensionsLoading}
                       data-shortcut-id="submit-action"
                       aria-label={
                         isCreditNote
@@ -897,7 +948,7 @@ export function PaymentReconciliationSheet({
                           : t("record_payment")
                       }
                     >
-                      {isPending ? (
+                      {isPending || isBalancing ? (
                         <>
                           <CareIcon
                             icon="l-spinner"

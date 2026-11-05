@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { navigate } from "raviger";
@@ -9,6 +9,13 @@ import { toast, Toaster } from "sonner";
 import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import {
   buildInvoiceUrl,
@@ -19,9 +26,13 @@ import { AppointmentSlotPicker } from "@/pages/Appointments/BookAppointment/Appo
 import useCurrentFacility from "@/pages/Facility/utils/useCurrentFacility";
 import { TagConfig } from "@/types/emr/tagConfig/tagConfig";
 import scheduleApi from "@/types/scheduling/scheduleApi";
+import { BatchReplacementType } from "@/types/superBatch/superBatch";
+import superBatchApi from "@/types/superBatch/superBatchApi";
+import { TokenCategoryRead } from "@/types/tokens/tokenCategory/tokenCategory";
+import tokenCategoryApi from "@/types/tokens/tokenCategory/tokenCategoryApi";
 import { KeyboardShortcutBadge } from "@/Utils/keyboardShortcutComponents";
 import { formatKeyboardShortcut } from "@/Utils/keyboardShortcutUtils";
-import mutate from "@/Utils/request/mutate";
+import query, { callApi } from "@/Utils/request/query";
 
 import { ScheduleResourceFormState } from "@/components/Schedule/ResourceSelector";
 import { Appointment } from "@/types/scheduling/schedule";
@@ -36,6 +47,47 @@ export interface BookAppointmentDetailsProps {
   patientId: string;
   onSuccess?: () => void;
 }
+
+const NO_TOKEN = "none";
+
+interface TokenCategorySelectProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  categories: TokenCategoryRead[];
+  disabled?: boolean;
+  className?: string;
+}
+
+const TokenCategorySelect = ({
+  value,
+  onValueChange,
+  categories,
+  disabled,
+  className,
+}: TokenCategorySelectProps) => {
+  const { t } = useTranslation();
+
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger size="sm" className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_TOKEN}>
+          {t("book_without_token", { ns: "care_appointment_plug" })}
+        </SelectItem>
+        {categories.map((category) => (
+          <SelectItem key={category.id} value={category.id}>
+            {t("book_with_token", {
+              ns: "care_appointment_plug",
+              category: category.name,
+            })}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
 
 const BookAppointmentDetailsBase = ({
   patientId,
@@ -83,13 +135,78 @@ const BookAppointmentDetailsBase = ({
     }
   };
 
-  const { mutateAsync: createAppointment, isPending: isCreating } = useMutation(
-    {
-      mutationFn: mutate(scheduleApi.slots.createAppointment, {
-        pathParams: { facilityId, slotId: selectedSlotId ?? "" },
+  const [selectedTokenCategory, setSelectedTokenCategory] = useState<string>();
+
+  const { data: tokenCategories, isLoading: isLoadingTokenCategories } =
+    useQuery({
+      queryKey: [
+        "tokenCategories",
+        facilityId,
+        selectedResource.resource_type,
+      ],
+      queryFn: query(tokenCategoryApi.list, {
+        pathParams: { facility_id: facilityId },
+        queryParams: { resource_type: selectedResource.resource_type },
       }),
+    });
+
+  const categories = tokenCategories?.results ?? [];
+  // Fall back to the default category when nothing valid is selected (e.g. after a resource type change).
+  const tokenCategory =
+    selectedTokenCategory === NO_TOKEN ||
+    categories.some((c) => c.id === selectedTokenCategory)
+      ? selectedTokenCategory
+      : (categories.find((c) => c.default)?.id ?? NO_TOKEN);
+
+  const { mutateAsync: bookAppointment, isPending: isCreating } = useMutation({
+    mutationFn: async (): Promise<Appointment> => {
+      const body = {
+        patient: patientId,
+        note: reason,
+        tags: selectedTags.map((tag) => tag.id),
+      };
+
+      if (tokenCategory === NO_TOKEN) {
+        return callApi(scheduleApi.slots.createAppointment, {
+          pathParams: { facilityId, slotId: selectedSlotId ?? "" },
+          body,
+        });
+      }
+
+      // Booking and token generation run as one atomic super batch.
+      const batch = await callApi(superBatchApi.execute, {
+        body: {
+          requests: [
+            {
+              reference_id: "appointment",
+              url: `/api/v1/facility/${facilityId}/slots/${selectedSlotId}/create_appointment/`,
+              method: "POST",
+              body,
+            },
+            {
+              reference_id: "token",
+              url: `/api/v1/facility/${facilityId}/appointments/{appointmentId}/generate_token/`,
+              method: "POST",
+              body: { category: tokenCategory },
+              replacements: [
+                {
+                  source_path: { reference_id: "appointment", path: "id" },
+                  value_path: {
+                    reference_id: "token",
+                    path: "appointmentId",
+                    type: BatchReplacementType.url,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      return batch.results.find((r) => r.reference_id === "appointment")
+        ?.data as Appointment;
     },
-  );
+  });
 
   const goToAppointmentView = (appointmentId: string) => {
     navigate(
@@ -100,11 +217,7 @@ const BookAppointmentDetailsBase = ({
   /** Dropdown action: book + run the plug's auto-invoice flow. */
   const handleProceedToBilling = async () => {
     if (!selectedResource || !selectedSlotId) return;
-    const data: Appointment = await createAppointment({
-      patient: patientId,
-      note: reason,
-      tags: selectedTags.map((tag) => tag.id),
-    });
+    const data = await bookAppointment();
     toast.success(t("appointment_created_successfully"));
     onSuccess?.();
 
@@ -191,13 +304,19 @@ const BookAppointmentDetailsBase = ({
             >
               {t("cancel")}
             </Button>
+            <TokenCategorySelect
+              value={tokenCategory ?? NO_TOKEN}
+              onValueChange={setSelectedTokenCategory}
+              categories={categories}
+              disabled={isLoadingTokenCategories || isCreating}
+            />
             <div className="flex">
               <Button
                 variant="primary"
                 size="sm"
                 onClick={handleProceedToBilling}
                 type="submit"
-                disabled={isCreating}
+                disabled={isCreating || isLoadingTokenCategories}
                 data-shortcut-id="enter-action"
               >
                 {t("proceed_to_billing", { ns: "care_appointment_plug" })}
@@ -275,6 +394,13 @@ const BookAppointmentDetailsBase = ({
                 onSlotSelect={setSelectedSlotId}
                 selectedDate={selectedDate}
               />
+              <TokenCategorySelect
+                className="w-full sm:hidden"
+                value={tokenCategory ?? NO_TOKEN}
+                onValueChange={setSelectedTokenCategory}
+                categories={categories}
+                disabled={isLoadingTokenCategories || isCreating}
+              />
               <div className="flex flex-row items-center justify-around gap-2 sm:hidden">
                 <Button
                   variant="outline"
@@ -292,7 +418,9 @@ const BookAppointmentDetailsBase = ({
                     variant="primary"
                     className="flex-1"
                     onClick={handleProceedToBilling}
-                    disabled={!selectedSlotId || isCreating}
+                    disabled={
+                      !selectedSlotId || isCreating || isLoadingTokenCategories
+                    }
                   >
                     {t("proceed_to_billing", {
                       ns: "care_appointment_plug",

@@ -45,9 +45,16 @@ export default defineConfig({
     },
   },
   preview: {
-    port: 4173,
+    port: Number(process.env.PORT) || 4173,
+      strictPort: !!process.env.PORT,
     allowedHosts: true,
     host: "0.0.0.0",
-    cors: true,
+    cors: { origin: "*" },
+  },
+  server: {
+    host: "0.0.0.0",
+    port: Number(process.env.PORT) || 4173,
+      strictPort: !!process.env.PORT,
+    cors: { origin: "*" },
   },
 });

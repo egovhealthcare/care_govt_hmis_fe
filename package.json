@@ -10,6 +10,10 @@
     "preview": "vite preview",
     "prepare": "husky"
   },
+  "portless": {
+    "name": "care-govt-hmis",
+    "script": "dev"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ohcnetwork/care_appointment_plug.git"
@@ -45,6 +49,7 @@
     "@eslint/js": "^9.24.0",
     "@hookform/resolvers": "^5.0.1",
     "@originjs/vite-plugin-federation": "^1.4.0",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.4",
     "@radix-ui/react-checkbox": "^1.1.5",
     "@radix-ui/react-dialog": "^1.1.15",

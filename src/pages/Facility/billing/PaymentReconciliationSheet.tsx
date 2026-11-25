@@ -168,7 +168,7 @@ const createBaseSchema = () =>
       : z.string().optional(),
   });
 
-const createFormSchema = (extValidation: z.ZodType<Record<string, unknown>>) =>
+const createFormSchema = (extValidation: z.ZodType<Record<string, unknown>, Record<string, unknown>>) =>
   createBaseSchema()
     .extend({
       extensions: extValidation.optional(),

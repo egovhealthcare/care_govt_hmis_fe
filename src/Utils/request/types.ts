@@ -38,10 +38,7 @@ export interface ApiCallOptions<Route extends ApiRoute<unknown, unknown>> {
 
 export type StructuredError = Record<string, string | string[]>;
 
-export type HTTPErrorCause =
-  | StructuredError
-  | Record<string, unknown>
-  | undefined;
+export type HTTPErrorCause = StructuredError | Record<string, unknown> | undefined;
 
 export class HTTPError extends Error {
   status: number;

@@ -42,9 +42,25 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // base-ui imports these CommonJS shims, whose `require("react")` would
+      // bundle a second React. Use ESM versions that import the shared React.
+      {
+        find: /^use-sync-external-store\/shim\/with-selector(\.js)?$/,
+        replacement: path.resolve(
+          __dirname,
+          "./src/lib/shims/useSyncExternalStoreWithSelector.ts",
+        ),
+      },
+      {
+        find: /^use-sync-external-store\/shim(\/index\.js)?$/,
+        replacement: path.resolve(
+          __dirname,
+          "./src/lib/shims/useSyncExternalStore.ts",
+        ),
+      },
+    ],
   },
   preview: {
     port: Number(process.env.PORT) || 4173,

@@ -1,10 +1,11 @@
-import { CaretDownIcon, CheckIcon } from "@radix-ui/react-icons";
+import { Spinner } from "@/components/ui/spinner";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Building2,
+  ChevronDown as CaretDownIcon,
+  Check as CheckIcon,
   ChevronRight,
-  Loader2,
   Search,
   X,
   XIcon,
@@ -37,11 +38,16 @@ import {
 
 import { Avatar } from "@/components/Common/Avatar";
 
+import { ScheduleResourceIcon } from "@/components/Schedule/ScheduleResourceIcon";
 import { COLOR_PALETTE } from "@/components/ui/multi-filter/utils/Utils";
 import useBreakpoints from "@/hooks/useBreakpoints";
 import { cn } from "@/lib/utils";
 import { FacilityOrganizationRead } from "@/types/facilityOrganization/facilityOrganization";
 import facilityOrganizationApi from "@/types/facilityOrganization/facilityOrganizationApi";
+import {
+  formatScheduleResourceName,
+  SchedulableResourceType,
+} from "@/types/scheduling/schedule";
 import scheduleApi from "@/types/scheduling/scheduleApi";
 import { UserReadMinimal } from "@/types/user/user";
 import query from "@/Utils/request/query";
@@ -284,6 +290,7 @@ export const PractitionerSelector = ({
     <Button
       variant="secondary"
       role="combobox"
+      aria-label={t("select_practitioners")}
       className="size-8! rounded-full"
     >
       {selected && selected.length > MULTI_SELECT_SHOW_LIMIT ? (
@@ -298,35 +305,46 @@ export const PractitionerSelector = ({
     <Button
       variant="outline"
       role="combobox"
-      className="min-w-60 w-full justify-start"
+      aria-label={t("select_practitioner")}
+      aria-expanded={open}
+      className="min-w-0 w-full justify-start"
     >
       {selected[0] ? (
-        <div className="flex items-center gap-2">
-          <Avatar
-            imageUrl={selected[0].profile_picture_url}
-            name={formatName(selected[0], true)}
+        <div className="flex min-w-0 items-center gap-2">
+          <ScheduleResourceIcon
+            resource={{
+              resource_type: SchedulableResourceType.Practitioner,
+              resource: selected[0],
+            }}
             className="size-6 rounded-full"
           />
-          <span>{formatName(selected[0])}</span>
+          <span className="truncate">
+            {formatScheduleResourceName({
+              resource_type: SchedulableResourceType.Practitioner,
+              resource: selected[0],
+            })}
+          </span>
         </div>
       ) : (
-        <span className="text-gray-400">{t("select_practitioner")}</span>
+        <span className="truncate text-muted-foreground">
+          {t("select_practitioner")}
+        </span>
       )}
       <CaretDownIcon className="ml-auto" />
     </Button>
   );
 
   const content = (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Main Content */}
       {!currentOrganizationId && (
-        <div className="flex-1 flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* Header */}
-          <div className="px-4 py-3 border-b bg-gray-50 rounded-t-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-600">
+          <div className="px-3 py-2 border-b border-border">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Building2 className="size-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm font-medium">
                   {t("select_practitioners")}
                 </span>
               </div>
@@ -334,7 +352,7 @@ export const PractitionerSelector = ({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllOrgs(!showAllOrgs)}
-                className="h-7 text-xs"
+                aria-pressed={showAllOrgs}
               >
                 {showAllOrgs ? t("all_dept") : t("my_dept")}
               </Button>
@@ -342,18 +360,16 @@ export const PractitionerSelector = ({
           </div>
 
           <Command className="border-0">
-            <div className="px-3 py-2 border-b">
-              <div className="relative">
-                <CommandInput
-                  placeholder={t("search_departments_and_practitioners")}
-                  value={searchQuery}
-                  onValueChange={setSearchQuery}
-                  className="pl-1 border-0 focus:ring-0 text-base sm:text-sm"
-                />
-              </div>
-            </div>
+            <CommandInput
+              placeholder={t("search_departments_and_practitioners")}
+              aria-label={t("search_departments_and_practitioners")}
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              wrapperClassName="border-b border-gray-100 p-2 shadow-xs md:pt-2"
+              className="text-base sm:text-sm"
+            />
 
-            <CommandList className="md:max-h-[30dvh] overflow-y-auto">
+            <CommandList className="scrollbar-gutter-auto md:max-h-[30dvh]">
               <CommandEmpty>
                 {searchQuery ? (
                   <div className="p-6 text-center text-gray-500">
@@ -501,7 +517,7 @@ export const PractitionerSelector = ({
 
       {/* Sidebar */}
       {currentOrganizationId && (
-        <div className="border-l border-gray-200 flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col border-l border-gray-200">
           {/* Sidebar Header */}
           <div className="px-4 py-3 border-b bg-gray-50">
             <div className="flex items-center justify-between">
@@ -538,7 +554,7 @@ export const PractitionerSelector = ({
           </div>
 
           {/* Sidebar Content */}
-          <div className="flex-1 overflow-y-auto max-h-[400px]">
+          <div className="min-h-0 flex-1 overflow-y-auto md:max-h-[400px]">
             {/* Show child organizations if current org has children */}
             {childOrganizations?.results?.length &&
             childOrganizations.results.length > 0 ? (
@@ -547,9 +563,11 @@ export const PractitionerSelector = ({
                   {t("departments")}
                 </h3>
                 {childOrganizations.results.map((organization) => (
-                  <div
+                  <Button
+                    type="button"
+                    variant="ghost"
                     key={organization.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    className="h-auto w-full justify-start text-left whitespace-normal flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
                     onClick={() => handleChildOrganizationClick(organization)}
                   >
                     <div className="flex-shrink-0">
@@ -573,7 +591,7 @@ export const PractitionerSelector = ({
                     {organization.has_children && (
                       <ChevronRight className="h-4 w-4 text-gray-500" />
                     )}
-                  </div>
+                  </Button>
                 ))}
               </div>
             ) : null}
@@ -582,7 +600,7 @@ export const PractitionerSelector = ({
               {isLoadingOrganizationUsers ? (
                 <div className="p-6 space-y-3">
                   <div className="flex items-center gap-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner className="h-4 w-4 animate-spin" />
                     <div className="space-y-1 flex-1">
                       <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse" />
                       <div className="h-3 w-1/2 bg-gray-200 rounded animate-pulse" />
@@ -628,9 +646,11 @@ export const PractitionerSelector = ({
                     const isSelected = selected?.some((s) => s.id === user.id);
 
                     return (
-                      <div
+                      <Button
+                        type="button"
+                        variant="ghost"
                         key={user.id}
-                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                        className="h-auto w-full justify-start text-left whitespace-normal flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
                         onClick={() => !isSelected && handleUserSelect(user)}
                       >
                         <Avatar
@@ -649,7 +669,7 @@ export const PractitionerSelector = ({
                         {isSelected && (
                           <CheckIcon className="h-4 w-4 text-gray-700" />
                         )}
-                      </div>
+                      </Button>
                     );
                   })}
                 </>
@@ -710,8 +730,8 @@ export const PractitionerSelector = ({
           }}
         >
           <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
-          <DrawerContent className="px-0 pt-2 min-h-[50vh] max-h-[85vh] rounded-t-lg">
-            <div className="mt-3 pb-[env(safe-area-inset-bottom)] flex-1 overflow-y-auto">
+          <DrawerContent aria-describedby={undefined} height="fixed">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
               {content}
             </div>
           </DrawerContent>
@@ -733,10 +753,7 @@ export const PractitionerSelector = ({
           <PopoverContent
             align="start"
             side="bottom"
-            className={cn(
-              "p-0",
-              !multiple && "w-[var(--radix-popover-trigger-width)]",
-            )}
+            className="w-[max(var(--anchor-width),24rem)] max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0"
           >
             {content}
           </PopoverContent>

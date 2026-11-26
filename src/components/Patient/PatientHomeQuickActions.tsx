@@ -1,9 +1,9 @@
 import { BedDouble } from "lucide-react";
-import { Link } from "raviger";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
+import { HrefLink } from "@/lib/router/HrefLink";
 
 import { PatientRead } from "@/types/emr/patient/patient";
 
@@ -17,7 +17,6 @@ interface QuickActionProps {
   icon: React.ReactNode;
   title: string;
   href?: string;
-  basePath?: string;
   onClick?: () => void;
   hidden?: boolean;
   className?: string;
@@ -27,7 +26,6 @@ function QuickAction({
   icon,
   title,
   href,
-  basePath,
   onClick,
   hidden,
   className,
@@ -40,9 +38,9 @@ function QuickAction({
 
   if (href) {
     return (
-      <Link basePath={basePath} href={href} className={classes}>
+      <HrefLink href={href} className={classes}>
         <QuickActionContent icon={icon} title={title} />
-      </Link>
+      </HrefLink>
     );
   }
 

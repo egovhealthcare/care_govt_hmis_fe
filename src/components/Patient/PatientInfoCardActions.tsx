@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 
 import type { PatientRead } from "@/types/emr/patient/patient";
 import { Edit } from "lucide-react";
-import { Link } from "raviger";
+import { HrefLink } from "@/lib/router/HrefLink";
 import { useTranslation } from "react-i18next";
 
 interface PatientInfoCardActionsProps {
@@ -22,8 +22,7 @@ export default function PatientInfoCardActions({
 
   return (
     <Button variant="ghost">
-      <Link
-        basePath="/"
+      <HrefLink
         href={`/facility/${facilityId}/patient/${patient.id}/update`}
         className="flex items-center gap-2"
       >
@@ -31,7 +30,7 @@ export default function PatientInfoCardActions({
         <span className="font-semibold text-black underline">
           {t("edit_profile")}
         </span>
-      </Link>
+      </HrefLink>
     </Button>
   );
 }

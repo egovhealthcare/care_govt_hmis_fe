@@ -41,12 +41,16 @@ export function EncounterLocationAssignmentSheet({
 }: EncounterLocationAssignmentSheetProps) {
   const { t } = useTranslation();
 
-  const navigation = useLocationNavigation({ facilityId, open });
+  const navigation = useLocationNavigation({
+    facilityId,
+    open,
+    tab: "assign",
+  });
 
   const handleOpenChange = (next: boolean) => {
     onOpenChange(next);
     if (!next) {
-      navigation.resetNavigation();
+      navigation.goBack();
     }
   };
 

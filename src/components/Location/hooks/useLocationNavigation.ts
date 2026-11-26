@@ -10,11 +10,13 @@ const ITEMS_PER_PAGE = 20;
 interface UseLocationNavigationProps {
   facilityId: string;
   open: boolean;
+  tab: "assign" | "history";
 }
 
 export function useLocationNavigation({
   facilityId,
   open,
+  tab,
 }: UseLocationNavigationProps) {
   const [selectedLocation, setSelectedLocation] = useState<LocationRead | null>(
     null,
@@ -53,7 +55,7 @@ export function useLocationNavigation({
       })({ signal });
       return response;
     },
-    enabled: open,
+    enabled: open && tab === "assign",
   });
 
   const { data: bedsData, isLoading: isLoadingBeds } = useQuery({
@@ -84,7 +86,7 @@ export function useLocationNavigation({
     enabled:
       (!!selectedLocation || searchTerm.trim() !== "") &&
       !!facilityId &&
-      open,
+      tab === "assign",
   });
 
   useEffect(() => {
@@ -146,7 +148,7 @@ export function useLocationNavigation({
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.SubmitEvent) => {
     e.preventDefault();
     setLocationsPage(1);
     setBedsPage(1);
@@ -159,32 +161,14 @@ export function useLocationNavigation({
     setSelectedLocation(null);
     setSelectedBed(null);
     setLocationsPage(1);
-    setAllLocations([]);
-    setHasMoreLocations(true);
     setBedsPage(1);
     setAllBeds([]);
     setHasMoreBeds(true);
     setSearchTerm("");
-  };
-
-  const resetNavigation = () => {
-    setSelectedLocation(null);
-    setLocationHistory([]);
-    setSelectedBed(null);
-    setShowAvailableOnly(false);
-    setSearchTerm("");
-    setLocationsPage(1);
-    setBedsPage(1);
-    setAllLocations([]);
-    setAllBeds([]);
-    setHasMoreLocations(true);
-    setHasMoreBeds(true);
-    if (locationsData?.results) {
-      setAllLocations(locationsData.results);
-    }
   };
 
   return {
+    // State
     selectedLocation,
     locationHistory,
     selectedBed,
@@ -197,17 +181,18 @@ export function useLocationNavigation({
     isLoadingLocations,
     isLoadingBeds,
 
+    // Setters
     setSelectedBed: handleBedSelect,
     setShowAvailableOnly,
     setSearchTerm,
     setBedsPage,
     setAllBeds,
 
+    // Handlers
     handleLocationClick,
     handleLoadMore,
     handleSearch,
     clearBedSelection,
     goBack,
-    resetNavigation,
   };
 }

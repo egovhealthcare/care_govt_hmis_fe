@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, MapPin, Stethoscope } from "lucide-react";
-import { navigate } from "raviger";
+import { navigate } from "@/lib/router/navigate";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import * as z from "zod";
 import { TFunction } from "i18next";
 
@@ -174,7 +174,7 @@ export function CreateInpatientEncounterPage({
 
   const getFormSchema = (
     t: TFunction,
-    extValidation: z.ZodType<Record<string, unknown>>,
+    extValidation: z.ZodType<Record<string, unknown>, Record<string, unknown>>,
     locationRequired: boolean,
   ) => {
     const encounterFormSchema = z
@@ -504,7 +504,7 @@ export function CreateInpatientEncounterPage({
       queryClient.invalidateQueries({ queryKey: ["encounters", patientId] });
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       queryClient.invalidateQueries({ queryKey: ["defaultAccount"] });
-      navigate(`/facility/${facilityId}/billing/account/${account.id}`);
+      navigate({ href: `/facility/${facilityId}/billing/account/${account.id}` });
     },
     onError: (error) => {
       console.log("Admit Patient Error:", error);
@@ -823,7 +823,7 @@ export function CreateInpatientEncounterPage({
                   type="button"
                   variant="outline"
                   onClick={() =>
-                    navigate(`/facility/${facilityId}/patient/${patientId}`)
+                    navigate({ href: `/facility/${facilityId}/patient/${patientId}` })
                   }
                 >
                   {t("cancel")}
@@ -857,16 +857,6 @@ export function CreateInpatientEncounterPage({
         }}
       />
 
-      <Toaster
-        position="top-center"
-        theme="light"
-        richColors
-        expand
-        // For `richColors` to work, pass at-least an empty object.
-        // Refer: https://github.com/shadcn-ui/ui/issues/2234.
-        toastOptions={{}}
-        closeButton
-      />
     </div>
   );
 }

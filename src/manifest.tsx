@@ -3,6 +3,7 @@ import { lazy } from "react";
 import "./componentOverrides";
 
 import { PatientRead } from "@/types/emr/patient/patient";
+import { FacilityRead } from "@/types/facility/facility";
 import { BookAppointmentDetails as BookAppointmentPage } from "@/pages/Appointments/BookAppointment/BookAppointmentPage";
 import CreateInpatientEncounterPage from "@/pages/Encounters/CreateInpatientEncounterPage";
 import EncounterExternalIdentifierSettings from "@/pages/Facility/settings/EncounterExternalIdentifierSettings";
@@ -34,7 +35,9 @@ interface Manifest {
         canWritePatient?: boolean;
       }>
     >;
-    FacilityHomeActions: React.LazyExoticComponent<React.FC>;
+    FacilityHomeActions: React.LazyExoticComponent<
+      React.FC<{ facility: FacilityRead }>
+    >;
   };
   navItems?: NavigationLink[];
   userNavItems?: NavigationLink[];

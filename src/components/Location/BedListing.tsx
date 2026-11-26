@@ -1,7 +1,7 @@
-import { Bed } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
+import { Card } from "@/components/ui/card";
+import { FieldLabel } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Tooltip,
@@ -9,6 +9,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+import {
+  BedAvailableSelected,
+  BedAvailableUnselected,
+  BedUnavailableSelected,
+  BedUnavailableUnselected,
+} from "@/CAREUI/icons/CustomIcons";
+import { TagBadges } from "@/components/Tags/TagBadges";
 import { LocationRead } from "@/types/location/location";
 import { buildLocationPath } from "@/types/location/utils";
 
@@ -31,16 +38,23 @@ export function BedListing({
   return (
     <RadioGroup
       value={selectedBed?.id || ""}
-      onValueChange={(id) => {
+      onValueChange={(id, eventDetails) => {
         const bed = beds.find((b) => b.id === id);
-        if (bed) onBedSelect(bed);
+        if (bed?.operational_status === "U") {
+          onBedSelect(bed);
+        } else {
+          eventDetails?.cancel();
+          if (bed?.current_encounter?.status === "discharged")
+            onCheckStatus(bed);
+        }
       }}
       className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
     >
       {beds.map((bed) => {
         const isAvailable = bed.operational_status === "U";
+        const isDischargedBed = bed.current_encounter?.status === "discharged";
         const isSelected = selectedBed?.id === bed.id;
-        const isClickable = isAvailable;
+        const isClickable = isAvailable || isDischargedBed;
         const segments = buildLocationPath(bed);
         const fullPath = segments.map((s) => s.name).join(" › ");
         const shortPath = segments
@@ -49,10 +63,10 @@ export function BedListing({
           .join(" › ");
 
         return (
-          <div
+          <Card
             key={bed.id}
             className={cn(
-              "h-32 relative border rounded-lg pt-3 pb-1",
+              "min-h-32 relative border rounded-lg pt-3 pb-1",
               isSelected && "border-green-600 bg-green-50",
               !isSelected &&
                 isClickable &&
@@ -61,33 +75,61 @@ export function BedListing({
                 !isClickable &&
                 "border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed",
             )}
-            onClick={() => {
+            onClick={(event) => {
+              if (
+                event.target instanceof Element &&
+                event.target.closest("button, a, input, [role='radio']")
+              )
+                return;
+              // The card supplies pointer convenience; its radio owns keyboard selection.
+              event.preventDefault();
               if (isAvailable) {
                 onBedSelect(bed);
-              } else {
+              } else if (isDischargedBed) {
                 onCheckStatus(bed);
               }
             }}
           >
-            <div className="absolute top-2 right-2">
+            <FieldLabel
+              htmlFor={bed.id}
+              className="w-full flex-col gap-0 cursor-inherit"
+            >
               <RadioGroupItem
                 value={bed.id}
                 id={bed.id}
-                className="size-4"
+                className="absolute top-2 right-2 size-4"
                 disabled={!isClickable}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!isAvailable && isDischargedBed) {
+                    event.preventDefault();
+                    onCheckStatus(bed);
+                  }
+                }}
               />
-            </div>
-            <div className="flex flex-col items-center">
-              <Bed
-                className={cn(
-                  "size-10 mt-4",
-                  isAvailable && isSelected && "text-green-600",
-                  isAvailable && !isSelected && "text-gray-600",
-                  !isAvailable && "text-gray-400",
+              <span className="relative">
+                {isAvailable ? (
+                  isSelected ? (
+                    <BedAvailableSelected className="size-10 mt-4" />
+                  ) : (
+                    <BedAvailableUnselected className="size-10 mt-4" />
+                  )
+                ) : isSelected ? (
+                  <BedUnavailableSelected className="size-10 mt-4" />
+                ) : (
+                  <BedUnavailableUnselected className="size-10 mt-4" />
                 )}
+              </span>
+              <span className="text-xs text-center font-medium mt-2">
+                {bed.name}
+              </span>
+            </FieldLabel>
+            <div className="flex flex-col items-center">
+              <TagBadges
+                tags={bed.tags}
+                className="justify-center mt-1 px-1"
+                size="xs"
               />
-              <p className="text-xs text-center font-medium mt-2">{bed.name}</p>
               {showParent && segments.length > 1 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -99,7 +141,7 @@ export function BedListing({
                 </Tooltip>
               )}
             </div>
-          </div>
+          </Card>
         );
       })}
     </RadioGroup>

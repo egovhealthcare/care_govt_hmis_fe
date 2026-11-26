@@ -1,4 +1,4 @@
-import { navigate } from "raviger";
+import { navigate } from "@/lib/router/navigate";
 
 const APPOINTMENT_SOURCE_URL_PATTERN =
   /^\/facility\/[^/]+\/patient\/[^/]+\/appointments\/[^/?#]+\/?$/;
@@ -70,6 +70,6 @@ export function redirectToAppointmentPrintFromSourceUrl() {
     invoiceUrl,
     printUrl: appointmentPrintRedirect.printUrl,
   });
-  navigate(appointmentPrintRedirect.printUrl);
+  navigate({ href: appointmentPrintRedirect.printUrl });
   return true;
 }

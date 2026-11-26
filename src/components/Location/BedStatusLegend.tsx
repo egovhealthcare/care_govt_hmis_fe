@@ -1,6 +1,11 @@
-import { Bed } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import {
+  BedAvailableSelected,
+  BedAvailableUnselected,
+  BedUnavailableSelected,
+  BedUnavailableUnselected,
+} from "@/CAREUI/icons/CustomIcons";
 import { cn } from "@/lib/utils";
 
 interface BedStatusLegendProps {
@@ -11,16 +16,31 @@ export function BedStatusLegend({ className }: BedStatusLegendProps) {
   const { t } = useTranslation();
 
   const statuses = [
-    { color: "text-gray-600", label: "available" },
-    { color: "text-green-600", label: "available_selected" },
-    { color: "text-gray-400", label: "occupied" },
+    {
+      icon: BedAvailableUnselected,
+      label: "available",
+    },
+    {
+      icon: BedAvailableSelected,
+      label: "available_selected",
+    },
+    {
+      icon: BedUnavailableUnselected,
+      label: "occupied",
+    },
+    {
+      icon: BedUnavailableSelected,
+      label: "occupied_selected",
+    },
   ];
 
   return (
     <div className={cn("flex flex-wrap items-center gap-4", className)}>
       {statuses.map((status) => (
         <div key={status.label} className="flex items-center gap-2">
-          <Bed className={cn("size-5", status.color)} />
+          <div className="relative size-6">
+            <status.icon className="h-full w-full" />
+          </div>
           <span className="text-xs">{t(status.label)}</span>
         </div>
       ))}

@@ -33,6 +33,22 @@ The fork is scoped by `condition.custom` to the two care_fe routes that mount
 Anywhere else (including future consumers of `BookAppointmentDetails`),
 the override is skipped and the core's base component renders.
 
+### Prints
+
+care_fe compiles prints to PDF with Typst, and every print renders its
+`TypstPrintPreview`. The plug overrides that one component
+(`src/components/Print/TypstPrintPreview.tsx`). Based on the `template` prop, it
+adjusts the print's `content` and then renders care_fe's component, so
+the plug ships no Typst and no print layouts of its own. Templates without
+a wrapper print unchanged. If content doesn't have the expected shape, the
+print falls back to care_fe's content.
+
+- `invoice`: adds each charge item's origin and category to its subtitle,
+  and adds the IP number when the account's primary encounter is inpatient.
+
+The host must allow the override: add `TypstPrintPreview` to care_fe's
+`REACT_MFE_REGISTERED_COMPONENTS`.
+
 ## Layout
 
 ```

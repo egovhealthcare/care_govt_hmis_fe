@@ -4,7 +4,7 @@ import {
   PauseCircle,
   WrenchIcon,
 } from "lucide-react";
-import { navigate } from "raviger";
+import { navigate } from "@/lib/router/navigate";
 import { ComponentType, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -34,7 +34,7 @@ import {
 import { extractInvoicesFromDispenses } from "@/pages/Facility/services/pharmacy/utils/extractInvoicesFromDispenses";
 
 import { EXCLUDED_CHARGE_ITEM_STATUSES } from "@/types/billing/chargeItem/chargeItem";
-import { InvoiceRead, InvoiceStatus } from "@/types/billing/invoice/invoice";
+import { InvoiceList, InvoiceStatus } from "@/types/billing/invoice/invoice";
 import {
   DispenseOrderRead,
   DispenseOrderStatus,
@@ -62,7 +62,7 @@ interface Props {
 }
 
 /** An invoice nobody owes anything on — nothing left to collect. */
-const hasNoAmountDue = (invoice: InvoiceRead) =>
+const hasNoAmountDue = (invoice: InvoiceList) =>
   decimal(invoice.total_gross || 0).lessThanOrEqualTo(0);
 
 /**
@@ -164,9 +164,9 @@ function OpenDispenseOrderFooter({
       {
         onSuccess: () => {
           setPutOnHoldDialogOpen(false);
-          navigate(
-            `/facility/${facilityId}/locations/${locationId}/medication_requests`,
-          );
+          navigate({
+            href: `/facility/${facilityId}/locations/${locationId}/medication_requests`,
+          });
         },
       },
     );

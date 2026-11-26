@@ -3,9 +3,9 @@ import { LocalStorageKeys } from "@/common/constants";
 import { HttpMethod, QueryParams, Type } from "@/Utils/request/types";
 
 export const API = <TResponse, TBody = undefined>(
-  route: `${HttpMethod} ${string}`,
+  method: HttpMethod,
+  path: string,
 ) => {
-  const [method, path] = route.split(" ") as [HttpMethod, string];
   return {
     path,
     method,
@@ -14,6 +14,18 @@ export const API = <TResponse, TBody = undefined>(
   };
 };
 
+/**
+ * Encodes a path param as exactly one path segment, so that its value can
+ * never add or remove segments, or start a query string or fragment.
+ */
+function encodePathSegment(value: string | number) {
+  const segment = `${value}`;
+  if (segment === "." || segment === "..") {
+    throw new Error(`Invalid path parameter: "${segment}"`);
+  }
+  return encodeURIComponent(segment);
+}
+
 export function makeUrl(
   path: string,
   query?: QueryParams,
@@ -21,7 +33,7 @@ export function makeUrl(
 ) {
   if (pathParams) {
     path = Object.entries(pathParams).reduce(
-      (acc, [key, value]) => acc.replace(`{${key}}`, `${value}`),
+      (acc, [key, value]) => acc.replace(`{${key}}`, encodePathSegment(value)),
       path,
     );
   }
@@ -107,13 +119,4 @@ export async function getResponseBody<TData>(res: Response): Promise<TData> {
   } catch {
     return (await res.text()) as TData;
   }
-}
-
-export function swapElements<T>(arr: T[], idx1: number, idx2: number): T[] {
-  if (idx1 < 0 || idx1 >= arr.length || idx2 < 0 || idx2 >= arr.length) {
-    return arr;
-  }
-  const newArray = [...arr];
-  [newArray[idx1], newArray[idx2]] = [newArray[idx2], newArray[idx1]];
-  return newArray;
 }

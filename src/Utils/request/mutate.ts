@@ -20,6 +20,7 @@ export default function mutate<Route extends ApiRoute<unknown, unknown>>(
   route: Route,
   options?: ApiCallOptions<Route>,
 ) {
-  return (variables: Route["TBody"]) =>
-    callApi(route, { ...options, body: variables });
+  return (variables: Route["TBody"]) => {
+    return callApi(route, { ...options, body: variables });
+  };
 }

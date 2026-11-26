@@ -1,5 +1,6 @@
 import { LocationRead } from "@/types/location/location";
-import { atomFamily, atomWithStorage } from "jotai/utils";
+import { atomFamily } from "jotai-family";
+import { atomWithStorage } from "jotai/utils";
 
 /**
  * Atom family for payment reconcilation location caching per facility

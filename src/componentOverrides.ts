@@ -11,13 +11,14 @@ import { BookAppointmentDetails } from "@/pages/Appointments/BookAppointment/Boo
 import { PaymentReconciliationSheet } from "@/pages/Facility/billing/PaymentReconciliationSheet";
 import { DispenseOrderViewFooter } from "@/pages/Facility/services/pharmacy/components/DispenseOrderViewFooter";
 import { defineComponentOverrides } from "@/lib/hostOverrides";
-import { PrintInvoice } from "@/components/Billing/PrintInvoice";
+import { PlugTypstPrintPreview } from "@/components/Print/TypstPrintPreview";
 
 defineComponentOverrides({
-  PrintInvoice: {
-    component: PrintInvoice,
+  TypstPrintPreview: {
+    component: PlugTypstPrintPreview,
     description:
-      "Shows service request origin and category on charge item titles for Invoice Print.",
+      "Adjusts print content for HMIS. " +
+      "Invoice: charge item origin and category, and IP number for inpatient accounts.",
   },
   BookAppointmentDetails: {
     component: BookAppointmentDetails,

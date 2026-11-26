@@ -15,14 +15,17 @@
 import { t } from "i18next";
 import { toast } from "sonner";
 
+import * as Notifications from "@/Utils/Notifications";
 import {
   HTTPError,
   HTTPErrorCause,
   StructuredError,
 } from "@/Utils/request/types";
+import { navigate } from "@/lib/router/navigate";
 import { BatchSubResponse } from "@/types/superBatch/superBatch";
 
 export function handleHttpError(error: Error) {
+  // Skip handling silent errors and AbortError
   if (("silent" in error && error.silent) || error.name === "AbortError") {
     return;
   }
@@ -41,6 +44,11 @@ export function handleHttpError(error: Error) {
 
   if (contentTooLarge(error)) {
     toast.error(t("file_too_large"));
+    return;
+  }
+
+  if (isSessionExpired(cause)) {
+    handleSessionExpired();
     return;
   }
 
@@ -74,11 +82,26 @@ export function handleHttpError(error: Error) {
       return;
     }
 
-    toast.error(t("something_went_wrong"));
+    Notifications.BadRequest({ errs });
     return;
   }
 
   toast.error((cause?.detail as string) || t("something_went_wrong"));
+}
+
+function isSessionExpired(error: HTTPError["cause"]) {
+  return (
+    // If Authorization header is not valid
+    error?.code === "token_not_valid" ||
+    // If Authorization header is not provided
+    error?.detail === "Authentication credentials were not provided."
+  );
+}
+
+function handleSessionExpired() {
+  if (!location.pathname.startsWith("/session-expired")) {
+    navigate({ href: `/session-expired?redirect=${window.location.href}` });
+  }
 }
 
 function isBadRequest(error: HTTPError) {
@@ -108,16 +131,21 @@ function isStructuredError(err: HTTPError["cause"]): err is StructuredError {
 function handleStructuredErrors(cause: StructuredError) {
   for (const value of Object.values(cause)) {
     if (Array.isArray(value)) {
-      value.forEach((err) => {
+      value.forEach((err: unknown) => {
         if (typeof err === "string") {
           toast.error(err);
         } else if (err && typeof err === "object") {
+          // Handle object errors - extract meaningful error messages
+          const errorObj = err as Record<string, unknown>;
           const errorFields = ["detail", "msg", "error", "message"] as const;
-          const e = err as Record<string, unknown>;
-          const field = errorFields.find(
-            (f) => typeof e[f] === "string" && (e[f] as string).length > 0,
-          );
-          toast.error(field ? (e[field] as string) : t("something_went_wrong"));
+          const errorMessage = errorFields
+            .map((field) => errorObj[field])
+            .find(
+              (message): message is string =>
+                typeof message === "string" && message.length > 0,
+            );
+
+          toast.error(errorMessage || t("something_went_wrong"));
         }
       });
       return;
@@ -139,17 +167,17 @@ function isPydanticError(errors: unknown): errors is PydanticError[] {
 }
 
 function handlePydanticErrors(errors: PydanticError[]) {
-  errors.forEach(({ type, loc, msg }) => {
+  errors.map(({ type, loc, msg }) => {
     const message = typeof msg === "string" ? msg : Object.values(msg)[0];
     if (!loc) {
       toast.error(message);
       return;
     }
-    const label = type
+    type = type
       .replace("_", " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
     toast.error(message, {
-      description: `${label}: '${loc.join(".")}'`,
+      description: `${type}: '${loc.join(".")}'`,
       duration: 8000,
     });
   });

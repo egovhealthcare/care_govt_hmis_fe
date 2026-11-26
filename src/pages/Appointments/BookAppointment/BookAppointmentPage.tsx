@@ -1,10 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { navigate } from "raviger";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 
 import { scheduleServiceTypeAtom } from "@/atoms/scheduleServiceTypeAtom";
 import { Button } from "@/components/ui/button";
@@ -22,6 +21,7 @@ import {
   InvoiceIssueError,
   runInvoiceFlow,
 } from "@/lib/invoiceFlow";
+import { navigate } from "@/lib/router/navigate";
 import { AppointmentSlotPicker } from "@/pages/Appointments/BookAppointment/AppointmentSlotPicker";
 import useCurrentFacility from "@/pages/Facility/utils/useCurrentFacility";
 import { TagConfig } from "@/types/emr/tagConfig/tagConfig";
@@ -68,7 +68,11 @@ const TokenCategorySelect = ({
   const { t } = useTranslation();
 
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select
+      value={value}
+      onValueChange={(value) => value && onValueChange(value)}
+      disabled={disabled}
+    >
       <SelectTrigger size="sm" className={className}>
         <SelectValue />
       </SelectTrigger>
@@ -129,10 +133,16 @@ const BookAppointmentDetailsBase = ({
   ]);
 
   const handleResourceChange = (resource: ScheduleResourceFormState) => {
+    setSelectedSlotId(undefined);
     setSelectedResource(resource);
     if (resource.resource_type !== cachedServiceType) {
       setCachedServiceType(resource.resource_type);
     }
+  };
+
+  const handleDateChange = (date: Date) => {
+    setSelectedSlotId(undefined);
+    setSelectedDate(date);
   };
 
   const [selectedTokenCategory, setSelectedTokenCategory] = useState<string>();
@@ -163,7 +173,7 @@ const BookAppointmentDetailsBase = ({
       const body = {
         patient: patientId,
         note: reason,
-        tags: selectedTags.map((tag) => tag.id),
+        tags: selectedTags.map((tag) => ({ tag: tag.id })),
       };
 
       if (tokenCategory === NO_TOKEN) {
@@ -209,12 +219,14 @@ const BookAppointmentDetailsBase = ({
   });
 
   const goToAppointmentView = (appointmentId: string) => {
-    navigate(
-      `/facility/${facilityId}/patient/${patientId}/appointments/${appointmentId}?showSuccess=true`,
-    );
+    navigate({
+      to: "/facility/$facilityId/patient/$patientId/appointments/$appointmentId",
+      params: { facilityId, patientId, appointmentId },
+      search: { showSuccess: "true" },
+    });
   };
 
-  /** Dropdown action: book + run the plug's auto-invoice flow. */
+  /** Books the appointment, then runs the plug's auto-invoice flow. */
   const handleProceedToBilling = async () => {
     if (!selectedResource || !selectedSlotId) return;
     const data = await bookAppointment();
@@ -231,7 +243,7 @@ const BookAppointmentDetailsBase = ({
     try {
       const invoiceId = await runInvoiceFlow(inputs);
       if (invoiceId) {
-        navigate(buildInvoiceUrl(inputs, invoiceId));
+        navigate({ href: buildInvoiceUrl(inputs, invoiceId) });
         return;
       }
     } catch (err) {
@@ -276,7 +288,7 @@ const BookAppointmentDetailsBase = ({
             facilityId={facilityId}
             resourceId={selectedResource.resource?.id}
             resourceType={selectedResource.resource_type}
-            setSelectedDate={setSelectedDate}
+            setSelectedDate={handleDateChange}
             selectedDate={selectedDate}
           />
           <div className="max-h-[calc(100vh-17rem)] w-full overflow-y-auto">
@@ -299,7 +311,7 @@ const BookAppointmentDetailsBase = ({
               size="sm"
               type="button"
               onClick={() => {
-                setSelectedSlotId("");
+                setSelectedSlotId(undefined);
               }}
             >
               {t("cancel")}
@@ -310,22 +322,20 @@ const BookAppointmentDetailsBase = ({
               categories={categories}
               disabled={isLoadingTokenCategories || isCreating}
             />
-            <div className="flex">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleProceedToBilling}
-                type="submit"
-                disabled={isCreating || isLoadingTokenCategories}
-                data-shortcut-id="enter-action"
-              >
-                {t("proceed_to_billing", { ns: "care_appointment_plug" })}
-                <KeyboardShortcutBadge
-                  shortcut={formatKeyboardShortcut("enter")}
-                  className="ml-1"
-                />
-              </Button>
-            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleProceedToBilling}
+              type="submit"
+              disabled={isCreating || isLoadingTokenCategories}
+              data-shortcut-id="enter-action"
+            >
+              {t("proceed_to_billing", { ns: "care_appointment_plug" })}
+              <KeyboardShortcutBadge
+                shortcut={formatKeyboardShortcut("enter")}
+                className="ml-1"
+              />
+            </Button>
           </div>
         </div>
       ) : (
@@ -339,7 +349,10 @@ const BookAppointmentDetailsBase = ({
                 // To do: construct the profile url from patientData params
                 window.history.go(-2);
               } else {
-                navigate(`/facility/${facilityId}/patient/${patientId}`);
+                navigate({
+                  to: "/facility/$facilityId/patient/$patientId",
+                  params: { facilityId, patientId },
+                });
               }
             }}
           >
@@ -361,17 +374,23 @@ const BookAppointmentDetailsBase = ({
             <ArrowRight size={16} />
           </Button>
         </DrawerTrigger>
-        <DrawerContent className="w-full space-y-4 p-4">
-          <div className="-mx-2 flex flex-col gap-3 overflow-y-auto">
+        <DrawerContent
+          aria-describedby={undefined}
+          height="fixed"
+          className="p-1.5"
+        >
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-1 pt-2 pb-[env(safe-area-inset-bottom)]">
             {currentStep === 1 && (
               <>
-                <AppointmentDateSelection
-                  facilityId={facilityId}
-                  resourceId={selectedResource.resource?.id}
-                  resourceType={selectedResource.resource_type}
-                  setSelectedDate={setSelectedDate}
-                  selectedDate={selectedDate}
-                />
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <AppointmentDateSelection
+                    facilityId={facilityId}
+                    resourceId={selectedResource.resource?.id}
+                    resourceType={selectedResource.resource_type}
+                    setSelectedDate={handleDateChange}
+                    selectedDate={selectedDate}
+                  />
+                </div>
                 <Button
                   className="w-full"
                   disabled={!selectedDate}
@@ -382,66 +401,51 @@ const BookAppointmentDetailsBase = ({
                 </Button>
               </>
             )}
-          </div>
-
-          {currentStep === 2 && (
-            <>
-              <AppointmentSlotPicker
-                facilityId={facilityId}
-                resourceId={selectedResource.resource?.id}
-                resourceType={selectedResource.resource_type}
-                selectedSlotId={selectedSlotId}
-                onSlotSelect={setSelectedSlotId}
-                selectedDate={selectedDate}
-              />
-              <TokenCategorySelect
-                className="w-full sm:hidden"
-                value={tokenCategory ?? NO_TOKEN}
-                onValueChange={setSelectedTokenCategory}
-                categories={categories}
-                disabled={isLoadingTokenCategories || isCreating}
-              />
-              <div className="flex flex-row items-center justify-around gap-2 sm:hidden">
-                <Button
-                  variant="outline"
-                  className="w-fit"
-                  onClick={() => {
-                    setCurrentStep(1);
-                    setSelectedSlotId(undefined);
-                  }}
-                >
-                  <ArrowLeft />
-                  {t("back")}
-                </Button>
-                <div className="flex w-full">
+            {currentStep === 2 && (
+              <>
+                <AppointmentSlotPicker
+                  facilityId={facilityId}
+                  resourceId={selectedResource.resource?.id}
+                  resourceType={selectedResource.resource_type}
+                  selectedSlotId={selectedSlotId}
+                  onSlotSelect={setSelectedSlotId}
+                  selectedDate={selectedDate}
+                />
+                <TokenCategorySelect
+                  className="w-full sm:hidden"
+                  value={tokenCategory ?? NO_TOKEN}
+                  onValueChange={setSelectedTokenCategory}
+                  categories={categories}
+                  disabled={isLoadingTokenCategories || isCreating}
+                />
+                <div className="flex flex-row items-center gap-2 sm:hidden">
+                  <Button
+                    variant="outline"
+                    className="min-w-0 flex-auto"
+                    onClick={() => {
+                      setCurrentStep(1);
+                      setSelectedSlotId(undefined);
+                    }}
+                  >
+                    <ArrowLeft />
+                    {t("back")}
+                  </Button>
                   <Button
                     variant="primary"
-                    className="flex-1"
+                    className="min-w-0 flex-auto"
                     onClick={handleProceedToBilling}
                     disabled={
                       !selectedSlotId || isCreating || isLoadingTokenCategories
                     }
                   >
-                    {t("proceed_to_billing", {
-                      ns: "care_appointment_plug",
-                    })}
+                    {t("proceed_to_billing", { ns: "care_appointment_plug" })}
                   </Button>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </DrawerContent>
       </Drawer>
-      <Toaster
-        position="top-center"
-        theme="light"
-        richColors
-        expand
-        // For `richColors` to work, pass at-least an empty object.
-        // Refer: https://github.com/shadcn-ui/ui/issues/2234.
-        toastOptions={{}}
-        closeButton
-      />{" "}
     </div>
   );
 };
